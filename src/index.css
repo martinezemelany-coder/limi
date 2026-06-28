@@ -1,0 +1,139 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-outfit: 'Outfit', sans-serif;
+    --font-dm: 'DM Sans', sans-serif;
+
+    --background: 340 50% 98%;
+    --foreground: 340 20% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 340 20% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 340 20% 15%;
+    --primary: 340 75% 68%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 340 40% 95%;
+    --secondary-foreground: 340 20% 25%;
+    --muted: 340 30% 96%;
+    --muted-foreground: 340 10% 50%;
+    --accent: 350 50% 95%;
+    --accent-foreground: 340 20% 25%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 340 30% 91%;
+    --input: 340 30% 91%;
+    --ring: 340 75% 68%;
+    --chart-1: 340 75% 68%;
+    --chart-2: 350 60% 75%;
+    --chart-3: 325 55% 72%;
+    --chart-4: 10 65% 72%;
+    --chart-5: 355 50% 78%;
+    --radius: 1rem;
+    --sidebar-background: 330 30% 96%;
+    --sidebar-foreground: 280 25% 22%;
+    --sidebar-primary: 330 70% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 280 35% 93%;
+    --sidebar-accent-foreground: 280 25% 22%;
+    --sidebar-border: 330 25% 88%;
+    --sidebar-ring: 330 70% 55%;
+  }
+
+  .dark {
+    --background: 280 22% 8%;
+    --foreground: 330 20% 95%;
+    --card: 280 22% 11%;
+    --card-foreground: 330 20% 95%;
+    --popover: 280 22% 11%;
+    --popover-foreground: 330 20% 95%;
+    --primary: 330 70% 60%;
+    --primary-foreground: 280 22% 8%;
+    --secondary: 280 22% 17%;
+    --secondary-foreground: 330 20% 90%;
+    --muted: 280 18% 14%;
+    --muted-foreground: 330 15% 55%;
+    --accent: 280 28% 20%;
+    --accent-foreground: 330 20% 90%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 280 18% 17%;
+    --input: 280 18% 17%;
+    --ring: 330 70% 60%;
+    --chart-1: 330 70% 60%;
+    --chart-2: 280 55% 62%;
+    --chart-3: 350 65% 67%;
+    --chart-4: 300 45% 57%;
+    --chart-5: 15 75% 67%;
+    --sidebar-background: 280 22% 10%;
+    --sidebar-foreground: 330 20% 90%;
+    --sidebar-primary: 330 70% 60%;
+    --sidebar-primary-foreground: 280 22% 8%;
+    --sidebar-accent: 280 22% 17%;
+    --sidebar-accent-foreground: 330 20% 90%;
+    --sidebar-border: 280 18% 17%;
+    --sidebar-ring: 330 70% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-dm;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .gradient-pink {
+    background: linear-gradient(135deg, #fda4af 0%, #f9a8d4 50%, #fbcfe8 100%);
+  }
+
+  .gradient-warm {
+    background: linear-gradient(135deg, #f9a8d4 0%, #fbb6ce 50%, #fda4af 100%);
+  }
+
+  .gradient-soft {
+    background: linear-gradient(135deg, #fff0f6 0%, #ffe4f0 50%, #ffd6e8 100%);
+  }
+
+  .glass {
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .glass-dark {
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .text-gradient {
+    background: linear-gradient(135deg, #f472b6, #fda4af);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .shadow-glow {
+    box-shadow: 0 0 30px rgba(249, 146, 178, 0.30);
+  }
+
+  .shadow-glow-sm {
+    box-shadow: 0 0 15px rgba(249, 146, 178, 0.22);
+  }
+}
