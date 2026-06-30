@@ -24,7 +24,6 @@ import {
   query,
   serverTimestamp,
   setDoc,
-  updateDoc,
 } from "firebase/firestore";
 
 const interestFilters = [
@@ -93,10 +92,10 @@ function getAuthProfile() {
     email: user?.email || "",
     avatar: (user?.displayName || user?.email || "L").charAt(0).toUpperCase(),
     photoURL: user?.photoURL || "",
-    city: "Miami, FL",
-    age: 19,
-    bio: "Excited to meet new girlies 💕",
-    interests: ["Fashion", "Cafe", "Self Care"],
+    city: "",
+    age: "",
+    bio: "",
+    interests: [],
     verified: false,
   };
 }
@@ -175,6 +174,67 @@ function ModalShell({ open, onClose, title, children }) {
         </div>
 
         {children}
+      </div>
+    </div>
+  );
+}
+
+function MatchModal({ person, open, onMessage, onKeepMatching }) {
+  if (!open || !person) return null;
+
+  return (
+    <div className="fixed inset-0 z-[140] flex items-end justify-center bg-black/50 px-3 sm:items-center">
+      <div className="w-full max-w-md rounded-t-[38px] bg-[#fff8fb] p-6 text-center shadow-2xl sm:rounded-[38px]">
+        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-[#f5a8bf] via-[#ef77ae] to-[#f97d8b] text-white shadow-[0_12px_24px_rgba(237,102,157,0.3)]">
+          <Heart size={38} fill="currentColor" />
+        </div>
+
+        <h2
+          className="mt-4 text-[44px] leading-none tracking-[-0.06em] text-[#eb6aaa]"
+          style={{ fontWeight: 1000 }}
+        >
+          It’s a Match!
+        </h2>
+
+        <p className="mt-3 text-base font-bold text-[#80636f]">
+          You and {person.name} liked each other 💕
+        </p>
+
+        <div className="mt-6 rounded-[30px] bg-white p-5 shadow-sm">
+          <div className="flex justify-center">
+            <ProfileAvatar person={person} />
+          </div>
+
+          <h3 className="mt-3 text-2xl font-black text-[#1f1720]">
+            {person.name}, {person.age}
+          </h3>
+
+          <p className="mt-1 flex items-center justify-center gap-1 text-sm font-bold text-[#96607f]">
+            <MapPin size={15} />
+            {person.city}
+          </p>
+
+          <p className="mt-3 text-sm font-semibold leading-6 text-[#80636f]">
+            {person.bio}
+          </p>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 gap-3">
+          <button
+            onClick={onMessage}
+            className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-4 text-lg font-black text-white shadow-[0_10px_24px_rgba(231,91,150,0.24)]"
+          >
+            <MessageCircle size={20} />
+            Send Message
+          </button>
+
+          <button
+            onClick={onKeepMatching}
+            className="w-full rounded-full border border-[#f0d8e2] bg-white py-4 text-lg font-black text-[#d35a91]"
+          >
+            Keep Matching
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -342,7 +402,6 @@ export default function Match() {
   const [people, setPeople] = useState([]);
   const [activity, setActivity] = useState(defaultActivity());
 
-  const [activeTab, setActiveTab] = useState("Discover");
   const [interestFilter, setInterestFilter] = useState("All");
   const [areaEnabled, setAreaEnabled] = useState(true);
 
@@ -350,6 +409,7 @@ export default function Match() {
   const [superLikedOpen, setSuperLikedOpen] = useState(false);
   const [passedOpen, setPassedOpen] = useState(false);
   const [matchesOpen, setMatchesOpen] = useState(false);
+  const [newMatch, setNewMatch] = useState(null);
 
   const uid = auth.currentUser?.uid;
 
@@ -361,11 +421,21 @@ export default function Match() {
     const unsubUser = onSnapshot(userRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
+
+        const profilePhoto =
+          data.profileImage ||
+          data.profilePhotoURL ||
+          data.profilePhoto ||
+          data.photoURL ||
+          auth.currentUser?.photoURL ||
+          "";
+
         setCurrentUser({
           ...getAuthProfile(),
           ...data,
           uid,
-          city: data.city || "Miami, FL",
+          photoURL: profilePhoto,
+          city: data.city || "",
           interests: data.interests || [],
         });
       }
@@ -379,11 +449,30 @@ export default function Match() {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const realUsers = snapshot.docs
-        .map((item) => ({
-          uid: item.id,
-          ...item.data(),
-        }))
-        .filter((person) => person.uid !== uid);
+        .map((item) => {
+          const data = item.data();
+
+          return {
+            uid: item.id,
+            ...data,
+            photoURL:
+              data.profileImage ||
+              data.profilePhotoURL ||
+              data.profilePhoto ||
+              data.photoURL ||
+              "",
+          };
+        })
+        .filter((person) => {
+          const sameUid = person.uid === uid;
+          const sameEmail = 
+             person.email &&
+             auth.currentUser?.email &&
+             person.email.toLowerCase() === auth.currentUser.email.toLoweCase();
+
+          return !sameUid && !sameEmail;
+
+        });
 
       setPeople(realUsers.length ? realUsers : demoPeople);
     });
@@ -424,7 +513,7 @@ export default function Match() {
   };
 
   const createChatWithPerson = async (person) => {
-    if (!uid) return;
+    if (!uid) return null;
 
     const chatId = [uid, person.uid].sort().join("_");
     const chatRef = doc(db, "chats", chatId);
@@ -434,6 +523,7 @@ export default function Match() {
       await setDoc(chatRef, {
         id: chatId,
         type: "match",
+        title: person.name,
         members: [uid, person.uid],
         memberNames: {
           [uid]: currentUser.name,
@@ -449,7 +539,12 @@ export default function Match() {
       });
     }
 
-    navigate(`/chat/${chatId}`);
+    return chatId;
+  };
+
+  const openChatWithPerson = async (person) => {
+    const chatId = await createChatWithPerson(person);
+    if (chatId) navigate(`/chat/${chatId}`);
   };
 
   const markLiked = async (person, type) => {
@@ -486,13 +581,14 @@ export default function Match() {
       await setDoc(
         doc(db, "matchActivity", person.uid),
         {
-          matches: [...(personActivity.matches || []), uid],
+          matches: [...new Set([...(personActivity.matches || []), uid])],
           updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
 
       await createChatWithPerson(person);
+      setNewMatch(person);
     }
 
     await updateActivity(next);
@@ -611,7 +707,7 @@ export default function Match() {
                 </p>
 
                 <p className="mt-2 text-2xl font-black text-[#2b1d28]">
-                  {currentUser.city || "Miami, FL"}
+                  {currentUser.city || "Your city"}
                 </p>
               </div>
 
@@ -634,25 +730,6 @@ export default function Match() {
             </p>
           </div>
 
-          <div className="mt-6 flex gap-3 overflow-x-auto pb-1">
-            {["Discover", "Activity", "Matches", "Chats"].map((tab) => (
-              <ActionPill
-                key={tab}
-                active={activeTab === tab}
-                onClick={() => {
-                  setActiveTab(tab);
-                  if (tab === "Matches") setMatchesOpen(true);
-                  if (tab === "Chats") {
-                    if (matchedPeople[0]) createChatWithPerson(matchedPeople[0]);
-                    else setMatchesOpen(true);
-                  }
-                }}
-              >
-                {tab}
-              </ActionPill>
-            ))}
-          </div>
-
           <div className="mt-5 flex gap-3 overflow-x-auto pb-1">
             {interestFilters.map((filter) => (
               <ActionPill
@@ -665,34 +742,44 @@ export default function Match() {
             ))}
           </div>
 
-          <div className="mt-5 grid grid-cols-3 gap-3">
+          <div className="mt-5 grid grid-cols-4 gap-3">
             <button
               onClick={() => setLikedOpen(true)}
-              className="rounded-2xl bg-[#fff2f7] px-3 py-4 text-center"
+              className="rounded-2xl bg-[#fff2f7] px-2 py-4 text-center"
             >
               <Heart size={20} className="mx-auto text-[#ec64a8]" />
-              <p className="mt-1 text-xs font-black text-[#80636f]">
+              <p className="mt-1 text-[11px] font-black text-[#80636f]">
                 Liked {likedPeople.length}
               </p>
             </button>
 
             <button
               onClick={() => setSuperLikedOpen(true)}
-              className="rounded-2xl bg-[#fff2f7] px-3 py-4 text-center"
+              className="rounded-2xl bg-[#fff2f7] px-2 py-4 text-center"
             >
               <Star size={20} className="mx-auto text-[#ec64a8]" />
-              <p className="mt-1 text-xs font-black text-[#80636f]">
+              <p className="mt-1 text-[11px] font-black text-[#80636f]">
                 Super {superLikedPeople.length}
               </p>
             </button>
 
             <button
               onClick={() => setPassedOpen(true)}
-              className="rounded-2xl bg-[#fff2f7] px-3 py-4 text-center"
+              className="rounded-2xl bg-[#fff2f7] px-2 py-4 text-center"
             >
               <RotateCcw size={20} className="mx-auto text-[#ec64a8]" />
-              <p className="mt-1 text-xs font-black text-[#80636f]">
+              <p className="mt-1 text-[11px] font-black text-[#80636f]">
                 Passed {passedPeople.length}
+              </p>
+            </button>
+
+            <button
+              onClick={() => setMatchesOpen(true)}
+              className="rounded-2xl bg-[#fff2f7] px-2 py-4 text-center"
+            >
+              <MessageCircle size={20} className="mx-auto text-[#ec64a8]" />
+              <p className="mt-1 text-[11px] font-black text-[#80636f]">
+                Matches {matchedPeople.length}
               </p>
             </button>
           </div>
@@ -755,7 +842,16 @@ export default function Match() {
         people={matchedPeople}
         emptyText="No matches yet. Keep discovering 💕"
         showChat
-        onChat={createChatWithPerson}
+        onChat={openChatWithPerson}
+      />
+
+      <MatchModal
+        open={!!newMatch}
+        person={newMatch}
+        onMessage={() => {
+          if (newMatch) openChatWithPerson(newMatch);
+        }}
+        onKeepMatching={() => setNewMatch(null)}
       />
     </div>
   );

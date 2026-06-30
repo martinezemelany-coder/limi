@@ -48,6 +48,8 @@ import {
 
   doc,
 
+  getDoc, 
+
   onSnapshot,
 
   orderBy,
@@ -86,34 +88,58 @@ const starterFilters = [
 
 ];
 
-function getUserDisplay() {
+function getFallbackUserDisplay() {
+  const user = auth.currentUser;
 
-  const user = auth.currentUser;
+  return {
+    uid: user?.uid || "guest",
+    name: user?.displayName || user?.email?.split("@")[0] || "Limi Girl",
+    email: user?.email || "",
+    avatar: (user?.displayName || user?.email || "L").charAt(0).toUpperCase(),
+    photoURL: user?.photoURL || "",
+    city: "",
+    age: "",
+    bio: "",
+    interests: [],
+    verified: false,
+  };
+}
 
-  return {
+async function getUserDisplayFromProfile() {
+  const user = auth.currentUser;
+  if (!user) return getFallbackUserDisplay();
 
-    uid: user?.uid || "guest",
+  const fallback = getFallbackUserDisplay();
 
-    name: user?.displayName || user?.email?.split("@")[0] || "Limi Girl",
+  const profileSnap = await getDoc(doc(db, "users", user.uid));
 
-    email: user?.email || "",
+  if (!profileSnap.exists()) return fallback;
 
-    avatar: (user?.displayName || user?.email || "L").charAt(0).toUpperCase(),
+  const profile = profileSnap.data();
+  console.log("PROFILE DATA:", profile);
 
-    photoURL: user?.photoURL || "",
+  const name = profile.name || profile.displayName || fallback.name;
 
-    city: "Miami",
-
-    age: 19,
-
-    bio: "Love meeting new girlies 💕",
-
-    interests: ["Cafe", "Fashion", "Self Care"],
-
-    verified: false,
-
-  };
-
+  return {
+    ...fallback,
+    name,
+    avatar: (name || "L").charAt(0).toUpperCase(),
+    photoURL:
+      profile.profileImage ||
+      profile.profilePhotoURL ||
+      profile.profilePhoto ||
+      profile.avatarUrl ||
+      profile.avatarURL ||
+      profile.imageUrl ||
+      profile.imageURL ||
+      profile.photoURL ||
+      fallback.photoURL, 
+    city: profile.city || fallback.city,
+    age: profile.age || fallback.age,
+    bio: profile.bio || fallback.bio,
+    interests: profile.interests || profile.hobbies || fallback.interests,
+    verified: profile.verified || false,
+  };
 }
 
 function formatDateDisplay(dateValue) {
@@ -1298,11 +1324,17 @@ function HangoutCard({
 
 export default function Hangouts() {
   const navigate = useNavigate();
-  const [currentUser, setCurrentUser] = useState(getUserDisplay());
+  const [currentUser, setCurrentUser] = useState(getFallbackUserDisplay());
 
 useEffect(() => {
-  const unsubscribe = auth.onAuthStateChanged(() => {
-    setCurrentUser(getUserDisplay());
+  const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    if (!user) {
+      setCurrentUser(getFallbackUserDisplay());
+      return;
+    }
+
+    const profileUser = await getUserDisplayFromProfile();
+    setCurrentUser(profileUser);
   });
 
   return () => unsubscribe();
