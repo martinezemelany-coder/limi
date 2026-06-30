@@ -591,7 +591,7 @@ export default function Match() {
               </h1>
 
               <p className="mt-2 text-lg font-bold text-[#80636f]">
-                find girlies near your vibe 💕
+                find your new friends 💕
               </p>
             </div>
 

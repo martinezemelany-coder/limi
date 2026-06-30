@@ -33,40 +33,40 @@ import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 
 const reelGroups = {
   Hobbies: [
-    "Beach Girlies",
-    "Study Girlies",
-    "Gym Girlies",
-    "Self Care Girlies",
-    "Night Out Girlies",
-    "Cafe Girlies",
-    "Pilates Girlies",
-    "Anime Girlies",
-    "Art Girlies",
-    "Fashion Girlies",
-    "Foodie Girlies",
-    "Travel Girlies",
+    "Beach",
+    "Study",
+    "Gym",
+    "Self Care",
+    "Night Out",
+    "Cafe",
+    "Pilates",
+    "Anime",
+    "Art",
+    "Fashion",
+    "Foodie",
+    "Travel",
   ],
   Career: [
-    "Technology Girlies",
-    "Business Girlies",
-    "Healthcare Girlies",
-    "Legal Girlies",
-    "Creative Girlies",
-    "Education Girlies",
-    "Engineering Girlies",
-    "Entrepreneur Girlies",
-    "Media Girlies",
-    "Science Girlies",
+    "Technology",
+    "Business",
+    "Healthcare",
+    "Legal",
+    "Creative",
+    "Education",
+    "Engineering",
+    "Entrepreneur",
+    "Media",
+    "Science",
   ],
   Life: [
-    "Side Hustle Girlies",
-    "Content Creator Girlies",
-    "9-5 Corporate Girlies",
-    "Remote Work Girlies",
-    "Student Girlies",
-    "Single Girlies",
-    "Glow Up Girlies",
-    "Relationship Girlies",
+    "Side Hustle",
+    "Content Creator",
+    "9-5 Corporate",
+    "Remote Work",
+    "Student",
+    "Single",
+    "Glow Up",
+    "Relationship",
   ],
 };
 
@@ -638,7 +638,7 @@ export default function Reels() {
               </h1>
 
               <p className="mt-2 text-lg font-bold text-[#80636f]">
-                watch your girlie groups 💕
+                watch your groups 💕
               </p>
             </div>
 

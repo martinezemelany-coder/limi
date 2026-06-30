@@ -30,6 +30,8 @@ import {
 
   Sparkles,
 
+  Trash2, 
+
 } from "lucide-react";
 
 import { auth, db } from "../lib/firebase";
@@ -41,6 +43,8 @@ import {
   arrayUnion,
 
   collection,
+
+  deleteDoc, 
 
   doc,
 
@@ -782,6 +786,8 @@ function ManageRequestsModal({
 
   onOpenChat,
 
+  onDeleteHangout, 
+
 }) {
 
   if (!open || !hangout) return null;
@@ -1038,6 +1044,16 @@ function ManageRequestsModal({
 
         )}
 
+      {host && (
+        <button
+          onClick={() => onDeleteHangout(hangout)}
+          className="flex w-full items-center justify-center gap-2 rounded-full border border-red-200 bg-white py-4 text-lg font-black text-red-500"
+       >
+          <Trash2 size={18} />
+          Delete Hangout
+       </button>
+      )}
+
       </div>
 
     </ModalShell>
@@ -1282,7 +1298,15 @@ function HangoutCard({
 
 export default function Hangouts() {
   const navigate = useNavigate();
-  const currentUser = useMemo(() => getUserDisplay(), []);
+  const [currentUser, setCurrentUser] = useState(getUserDisplay());
+
+useEffect(() => {
+  const unsubscribe = auth.onAuthStateChanged(() => {
+    setCurrentUser(getUserDisplay());
+  });
+
+  return () => unsubscribe();
+}, []);
 
   const [hangouts, setHangouts] = useState([]);
   const [activeFilter, setActiveFilter] = useState("All");
@@ -1314,6 +1338,26 @@ export default function Hangouts() {
 
     return hangouts.filter((item) => item.groupType === activeFilter);
   }, [hangouts, activeFilter, currentUser.uid]);
+
+  const deleteHangout = async (hangout) => {
+    const confirmed = window.confirm("Delete this hangout? This will remove it for everyone.");
+    if (!confirmed) return;
+    if (hangout.hostId !== currentUser.uid) {
+      alert("Only the host can delete this hangout.");
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, "hangouts", hangout.id));
+      if (hangout.chatId) {
+        await deleteDoc(doc(db, "chats", hangout.chatId));
+      }
+      setManageHangout(null);
+      alert("Hangout deleted 💕");
+    } catch (error) {
+      console.error("Error deleting hangout:", error);
+      alert(error.message || "Could not delete hangout.");
+    }
+  };
 
   const requestJoin = async (hangout) => {
     if (hasRequested(hangout, currentUser)) return;
@@ -1407,7 +1451,7 @@ export default function Hangouts() {
               </h1>
 
               <p className="mt-2 text-lg font-bold text-[#80636f]">
-                find girlies to hang with 💕
+                find friends to hang with 💕
               </p>
             </div>
 
@@ -1454,6 +1498,7 @@ export default function Hangouts() {
                 onRequestJoin={requestJoin}
                 onManage={setManageHangout}
                 onOpenChat={openChat}
+                onDeleteHangout={deleteHangout}
               />
             ))
           ) : (
@@ -1488,6 +1533,7 @@ export default function Hangouts() {
         onViewProfile={setProfilePerson}
         onStartHangout={startHangout}
         onOpenChat={openChat}
+        onDeleteHangout={deleteHangout}
       />
 
       <PersonProfileModal
