@@ -7,6 +7,7 @@ import {
   Check,
   ShieldCheck,
   Sparkles,
+  MapPin,
 } from "lucide-react";
 
 import { auth, db, storage } from "../lib/firebase";
@@ -90,6 +91,17 @@ export default function Onboarding() {
   const [city, setCity] = useState("");
   const [bio, setBio] = useState("");
 
+  const [location, setLocation] = useState({
+    city: "",
+    state: "",
+    country: "US",
+    lat: null,
+    lng: null,
+  });
+
+  const [radiusMiles, setRadiusMiles] = useState(25);
+  const [gettingLocation, setGettingLocation] = useState(false);
+
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState("");
 
@@ -104,7 +116,7 @@ export default function Onboarding() {
   const [selectedVibes, setSelectedVibes] = useState([]);
   const [socialEnergy, setSocialEnergy] = useState("");
 
-  const totalSteps = 5;
+  const totalSteps = 6;
   const progress = useMemo(() => `${(step / totalSteps) * 100}%`, [step]);
 
   const toggleUnlimited = (item, list, setList) => {
@@ -153,18 +165,52 @@ export default function Onboarding() {
     setSelfiePreview(URL.createObjectURL(file));
   };
 
-  const canContinue = () => {
-    if (step === 1) return name.trim() && age.trim() && city.trim();
-    if (step === 2) return photoFile || photoPreview;
-    if (step === 3) return selectedInterests.length >= 1;
+  const useMyLocation = () => {
+    if (!navigator.geolocation) {
+      alert("Your browser does not support location.");
+      return;
+    }
 
-    if (step === 4) {
+    setGettingLocation(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        setLocation((prev) => ({
+          ...prev,
+          lat,
+          lng,
+        }));
+
+        setGettingLocation(false);
+        alert("Location saved privately 💕 Now enter your public city.");
+      },
+      (error) => {
+        console.error("Location error:", error);
+        setGettingLocation(false);
+        alert("Location permission was blocked. You can enter your city manually.");
+      }
+    );
+  };
+
+  const canContinue = () => {
+    if (step === 1) return name.trim() && age.trim();
+
+    if (step === 2) return selectedInterests.length >= 1;
+
+    if (step === 3) {
       return (
         selectedActivities.length >= 1 &&
         selectedVibes.length >= 1 &&
         socialEnergy
       );
     }
+
+    if (step === 4) return photoFile || photoPreview;
+
+    if (step === 5) return city.trim();
 
     return true;
   };
@@ -216,9 +262,21 @@ export default function Onboarding() {
         city: city.trim(),
         bio: bio.trim(),
         profileImage: photoURL,
+        photoURL,
+
+        location: {
+          city: city.trim(),
+          state: location.state || "",
+          country: location.country || "US",
+          lat: location.lat,
+          lng: location.lng,
+        },
+
+        radiusMiles,
 
         interests: selectedInterests,
         activities: selectedActivities,
+        friendActivities: selectedActivities,
         vibes: selectedVibes,
         socialEnergy,
 
@@ -238,12 +296,12 @@ export default function Onboarding() {
   };
 
   const skipVerification = async () => {
-    const currentUser = auth.currentUser;
+    const currentUser = auth.currentUser;
 
-    if (!currentUser) {
-        alert("Please sign in again.");
-        return;
-    }
+    if (!currentUser) {
+      alert("Please sign in again.");
+      return;
+    }
 
     try {
       setSaving(true);
@@ -307,25 +365,23 @@ export default function Onboarding() {
   return (
     <div style={styles.page}>
       <div style={styles.card}>
-        <div style={styles.header}>
-          <div>
-            <h1 style={styles.title}>Welcome</h1>
-            <p style={styles.subtitle}>let’s build your vibe 💕</p>
-          </div>
-          <Sparkles size={30} color="white" />
+        <div style={styles.logoBox}>
+          <div style={styles.logo}>L</div>
         </div>
+
+        <h1 style={styles.title}>Welcome</h1>
+        <p style={styles.subtitle}>let’s build your Limi identity 💕</p>
 
         <div style={styles.progressOuter}>
           <div style={{ ...styles.progressInner, width: progress }} />
         </div>
 
-        <p style={styles.stepText}>
-          Step {step} of {totalSteps}
-        </p>
+        <p style={styles.stepText}>Step {step} of {totalSteps}</p>
 
         {step === 1 && (
           <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>Your Profile</h2>
+            <h2 style={styles.sectionTitle}>Tell us about yourself</h2>
+            <p style={styles.helper}>This is what people will see on your profile.</p>
 
             <input
               style={styles.input}
@@ -342,13 +398,6 @@ export default function Onboarding() {
               onChange={(e) => setAge(e.target.value)}
             />
 
-            <input
-              style={styles.input}
-              placeholder="City"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-            />
-
             <textarea
               style={styles.textarea}
               placeholder="Short bio — tell people what you're like 💗"
@@ -359,34 +408,6 @@ export default function Onboarding() {
         )}
 
         {step === 2 && (
-          <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>Profile Photo</h2>
-
-            <label style={styles.photoBox}>
-              {photoPreview ? (
-                <img
-                  src={photoPreview}
-                  alt="Preview"
-                  style={styles.photoPreview}
-                />
-              ) : (
-                <div style={styles.photoPlaceholder}>
-                  <Camera size={40} color="#ec5ca8" />
-                  <p>Upload your photo</p>
-                </div>
-              )}
-
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handlePhotoChange}
-                style={{ display: "none" }}
-              />
-            </label>
-          </div>
-        )}
-
-        {step === 3 && (
           <div style={styles.section}>
             <h2 style={styles.sectionTitle}>What are you into?</h2>
             <p style={styles.helper}>Choose as many as you want.</p>
@@ -420,11 +441,9 @@ export default function Onboarding() {
           </div>
         )}
 
-        {step === 4 && (
+        {step === 3 && (
           <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>
-              What would you do with friends?
-            </h2>
+            <h2 style={styles.sectionTitle}>What would you do with friends?</h2>
             <p style={styles.helper}>Choose as many as you want.</p>
 
             <div style={styles.grid}>
@@ -480,7 +499,7 @@ export default function Onboarding() {
             </div>
 
             <h2 style={{ ...styles.sectionTitle, marginTop: 24 }}>
-              Choose Your Vibe
+              Choose your vibe
             </h2>
             <p style={styles.helper}>Choose up to 3.</p>
 
@@ -509,12 +528,103 @@ export default function Onboarding() {
           </div>
         )}
 
+        {step === 4 && (
+          <div style={styles.section}>
+            <h2 style={styles.sectionTitle}>Upload your best photo</h2>
+            <p style={styles.helper}>A clear profile photo helps people trust you.</p>
+
+            <label style={styles.photoBox}>
+              {photoPreview ? (
+                <img
+                  src={photoPreview}
+                  alt="Preview"
+                  style={styles.photoPreview}
+                />
+              ) : (
+                <div style={styles.photoPlaceholder}>
+                  <Camera size={42} color="#d94b93" />
+                  <p>Upload your photo</p>
+                </div>
+              )}
+
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoChange}
+                style={{ display: "none" }}
+              />
+            </label>
+          </div>
+        )}
+
         {step === 5 && (
           <div style={styles.section}>
-            <div style={styles.verifyBox}>
-              <ShieldCheck size={52} color="#ec5ca8" />
+            <div style={styles.locationIcon}>
+              <MapPin size={34} color="#d94b93" />
+            </div>
 
-              <h2 style={styles.sectionTitle}>Verify Your Identity</h2>
+            <h2 style={styles.sectionTitle}>Find people near you</h2>
+
+            <p style={styles.helper}>
+              Limi uses your area to show nearby feed posts, matches, reels, and
+              hangouts. Your exact location is never shown publicly.
+            </p>
+
+            <button
+              type="button"
+              style={styles.locationButton}
+              onClick={useMyLocation}
+              disabled={gettingLocation}
+            >
+              <MapPin size={18} />
+              {gettingLocation ? "Getting location..." : "Use my location"}
+            </button>
+
+            {location.lat && location.lng && (
+              <p style={styles.locationSaved}>Location saved privately 💕</p>
+            )}
+
+            <input
+              style={styles.input}
+              placeholder="Public city, example: Orlando, FL"
+              value={city}
+              onChange={(e) => {
+                setCity(e.target.value);
+                setLocation((prev) => ({
+                  ...prev,
+                  city: e.target.value,
+                }));
+              }}
+            />
+
+            <label style={styles.radiusLabel}>
+              Show me people within {radiusMiles} miles
+            </label>
+
+            <input
+              type="range"
+              min="5"
+              max="100"
+              step="5"
+              value={radiusMiles}
+              onChange={(e) => setRadiusMiles(Number(e.target.value))}
+              style={styles.range}
+            />
+
+            <div style={styles.radiusOptions}>
+              <span>5 mi</span>
+              <span>50 mi</span>
+              <span>100 mi</span>
+            </div>
+          </div>
+        )}
+
+        {step === 6 && (
+          <div style={styles.section}>
+            <div style={styles.verifyBox}>
+              <ShieldCheck size={52} color="#d94b93" />
+
+              <h2 style={styles.sectionTitle}>Get verified</h2>
 
               <p style={styles.verifyText}>
                 Verification is optional. It helps build trust and adds a
@@ -526,7 +636,7 @@ export default function Onboarding() {
                 <div style={styles.verifyActions}>
                   <button
                     type="button"
-                    style={styles.nextButton}
+                    style={styles.nextButtonFull}
                     onClick={() => setShowVerificationForm(true)}
                     disabled={saving}
                   >
@@ -555,7 +665,7 @@ export default function Onboarding() {
                       />
                     ) : (
                       <div>
-                        <Camera size={34} color="#ec5ca8" />
+                        <Camera size={34} color="#d94b93" />
                         <p>Upload ID photo</p>
                       </div>
                     )}
@@ -577,7 +687,7 @@ export default function Onboarding() {
                       />
                     ) : (
                       <div>
-                        <Camera size={34} color="#ec5ca8" />
+                        <Camera size={34} color="#d94b93" />
                         <p>Take real-time selfie</p>
                       </div>
                     )}
@@ -650,7 +760,7 @@ const styles = {
   page: {
     minHeight: "100vh",
     background:
-      "linear-gradient(180deg, #fff6fb 0%, #ffeaf4 45%, #ffd6e8 100%)",
+      "linear-gradient(135deg, #fdeef4 0%, #f8dce6 45%, #f4b7c8 100%)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
@@ -661,36 +771,48 @@ const styles = {
   card: {
     width: "100%",
     maxWidth: "430px",
-    background: "rgba(255, 255, 255, 0.95)",
-    borderRadius: "34px",
-    padding: "24px",
-    boxShadow: "0 22px 55px rgba(236, 92, 168, 0.18)",
-    border: "1px solid rgba(255, 214, 232, 0.95)",
+    background: "rgba(255, 250, 250, 0.96)",
+    borderRadius: "38px",
+    padding: "32px",
+    boxShadow: "0 18px 45px rgba(231, 91, 150, 0.18)",
+    border: "1px solid rgba(255,255,255,0.7)",
   },
 
-  header: {
-    background: "linear-gradient(135deg, #ec5ca8, #f27bb7)",
-    margin: "-24px -24px 22px",
-    padding: "34px 28px",
-    borderRadius: "34px 34px 0 0",
+  logoBox: {
     display: "flex",
-    justifyContent: "space-between",
+    justifyContent: "center",
+    marginBottom: "20px",
+  },
+
+  logo: {
+    width: "82px",
+    height: "82px",
+    borderRadius: "28px",
+    background: "linear-gradient(135deg, #f5a2bc, #ef87ad, #f78e9b)",
+    color: "white",
+    display: "flex",
     alignItems: "center",
+    justifyContent: "center",
+    fontSize: "40px",
+    fontWeight: "950",
+    boxShadow: "0 12px 28px rgba(231,91,150,0.25)",
   },
 
   title: {
     margin: 0,
-    fontSize: "42px",
-    fontWeight: "950",
-    color: "white",
-    letterSpacing: "-1.5px",
+    textAlign: "center",
+    fontSize: "46px",
+    fontWeight: "1000",
+    color: "#ec64a8",
+    letterSpacing: "-0.05em",
   },
 
   subtitle: {
-    margin: "8px 0 0",
-    color: "rgba(255,255,255,0.9)",
-    fontSize: "17px",
-    fontWeight: "800",
+    margin: "10px 0 26px",
+    textAlign: "center",
+    color: "#80636f",
+    fontSize: "16px",
+    fontWeight: "850",
   },
 
   progressOuter: {
@@ -702,17 +824,17 @@ const styles = {
 
   progressInner: {
     height: "100%",
-    background: "linear-gradient(90deg, #ec5ca8, #f27bb7)",
+    background: "linear-gradient(90deg, #f5a2bc, #ef87ad, #d94b93)",
     borderRadius: "999px",
     transition: "width 0.25s ease",
   },
 
   stepText: {
     fontSize: "13px",
-    color: "#8c6676",
+    color: "#80636f",
     marginTop: "10px",
-    marginBottom: "18px",
-    fontWeight: "800",
+    marginBottom: "20px",
+    fontWeight: "850",
   },
 
   section: {
@@ -723,50 +845,52 @@ const styles = {
 
   sectionTitle: {
     margin: 0,
-    fontSize: "23px",
+    fontSize: "25px",
     fontWeight: "950",
-    color: "#ec5ca8",
+    color: "#d94b93",
+    letterSpacing: "-0.03em",
   },
 
   helper: {
     margin: "0 0 4px",
-    color: "#8c6676",
+    color: "#80636f",
     fontSize: "13px",
-    fontWeight: "700",
+    fontWeight: "750",
+    lineHeight: 1.5,
   },
 
   input: {
     width: "100%",
     boxSizing: "border-box",
-    border: "1px solid #f5c8dc",
-    background: "#fff8fc",
+    border: "1px solid #f0d8e2",
+    background: "white",
     borderRadius: "18px",
     padding: "15px 16px",
     fontSize: "15px",
     outline: "none",
     color: "#2b1b23",
-    fontWeight: "700",
+    fontWeight: "750",
   },
 
   textarea: {
     width: "100%",
     minHeight: "110px",
     boxSizing: "border-box",
-    border: "1px solid #f5c8dc",
-    background: "#fff8fc",
+    border: "1px solid #f0d8e2",
+    background: "white",
     borderRadius: "18px",
     padding: "15px 16px",
     fontSize: "15px",
     outline: "none",
     resize: "none",
     color: "#2b1b23",
-    fontWeight: "700",
+    fontWeight: "750",
   },
 
   photoBox: {
     height: "260px",
-    borderRadius: "28px",
-    border: "2px dashed #ef8ec0",
+    borderRadius: "30px",
+    border: "2px dashed #f0b7cc",
     background: "#fff8fc",
     display: "flex",
     justifyContent: "center",
@@ -777,8 +901,8 @@ const styles = {
 
   photoPlaceholder: {
     textAlign: "center",
-    color: "#8c6676",
-    fontWeight: "800",
+    color: "#80636f",
+    fontWeight: "850",
   },
 
   photoPreview: {
@@ -790,14 +914,14 @@ const styles = {
   uploadBox: {
     height: "180px",
     borderRadius: "24px",
-    border: "2px dashed #ef8ec0",
+    border: "2px dashed #f0b7cc",
     background: "#fff8fc",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
     overflow: "hidden",
     cursor: "pointer",
-    color: "#8c6676",
+    color: "#80636f",
     fontWeight: "850",
     textAlign: "center",
     marginTop: "12px",
@@ -810,8 +934,8 @@ const styles = {
   },
 
   pill: {
-    border: "1px solid #f5c8dc",
-    background: "#fff8fc",
+    border: "1px solid #f0d8e2",
+    background: "white",
     color: "#6f5360",
     borderRadius: "999px",
     padding: "11px 15px",
@@ -824,22 +948,76 @@ const styles = {
   },
 
   pillActive: {
-    background: "linear-gradient(135deg, #ec5ca8, #f27bb7)",
+    background: "linear-gradient(135deg, #f5a2bc, #ef87ad, #d94b93)",
     color: "white",
-    border: "1px solid #ec5ca8",
-    boxShadow: "0 8px 18px rgba(236, 92, 168, 0.28)",
+    border: "1px solid transparent",
+    boxShadow: "0 8px 18px rgba(231,91,150,0.22)",
+  },
+
+  locationIcon: {
+    width: "74px",
+    height: "74px",
+    borderRadius: "26px",
+    background: "#fff0f7",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    margin: "0 auto 8px",
+  },
+
+  locationButton: {
+    border: "none",
+    background: "linear-gradient(135deg, #f5a2bc, #ef87ad, #d94b93)",
+    color: "white",
+    borderRadius: "999px",
+    padding: "14px 18px",
+    fontSize: "15px",
+    fontWeight: "950",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+    cursor: "pointer",
+    boxShadow: "0 10px 24px rgba(231,91,150,0.24)",
+  },
+
+  locationSaved: {
+    margin: 0,
+    color: "#16a34a",
+    fontSize: "13px",
+    fontWeight: "900",
+  },
+
+  radiusLabel: {
+    marginTop: "8px",
+    color: "#80636f",
+    fontSize: "14px",
+    fontWeight: "900",
+  },
+
+  range: {
+    width: "100%",
+    accentColor: "#ef87ad",
+  },
+
+  radiusOptions: {
+    display: "flex",
+    justifyContent: "space-between",
+    color: "#80636f",
+    fontSize: "12px",
+    fontWeight: "800",
   },
 
   verifyBox: {
     background: "#fff8fc",
-    border: "1px solid #f5c8dc",
-    borderRadius: "28px",
+    border: "1px solid #f0d8e2",
+    borderRadius: "30px",
     padding: "28px",
     textAlign: "center",
   },
 
   verifyText: {
-    color: "#8c6676",
+    color: "#80636f",
     fontSize: "14px",
     lineHeight: 1.5,
     marginBottom: "20px",
@@ -863,7 +1041,7 @@ const styles = {
   backButton: {
     border: "none",
     background: "#fff0f7",
-    color: "#ec5ca8",
+    color: "#d94b93",
     borderRadius: "999px",
     padding: "13px 18px",
     fontSize: "15px",
@@ -876,7 +1054,7 @@ const styles = {
 
   nextButton: {
     border: "none",
-    background: "linear-gradient(135deg, #ec5ca8, #f27bb7)",
+    background: "linear-gradient(135deg, #f5a2bc, #ef87ad, #d94b93)",
     color: "white",
     borderRadius: "999px",
     padding: "13px 20px",
@@ -887,13 +1065,13 @@ const styles = {
     justifyContent: "center",
     gap: "6px",
     cursor: "pointer",
-    boxShadow: "0 10px 24px rgba(236, 92, 168, 0.35)",
+    boxShadow: "0 10px 24px rgba(231,91,150,0.24)",
   },
 
   nextButtonFull: {
     width: "100%",
     border: "none",
-    background: "linear-gradient(135deg, #ec5ca8, #f27bb7)",
+    background: "linear-gradient(135deg, #f5a2bc, #ef87ad, #d94b93)",
     color: "white",
     borderRadius: "999px",
     padding: "14px 20px",
@@ -904,14 +1082,14 @@ const styles = {
     justifyContent: "center",
     gap: "6px",
     cursor: "pointer",
-    boxShadow: "0 10px 24px rgba(236, 92, 168, 0.35)",
+    boxShadow: "0 10px 24px rgba(231,91,150,0.24)",
     marginTop: "14px",
   },
 
   skipButton: {
-    border: "1px solid #f5c8dc",
-    background: "#fff0f7",
-    color: "#ec5ca8",
+    border: "1px solid #f0d8e2",
+    background: "white",
+    color: "#d94b93",
     borderRadius: "999px",
     padding: "13px 20px",
     fontSize: "15px",
@@ -926,7 +1104,7 @@ const styles = {
   skipTextButton: {
     border: "none",
     background: "transparent",
-    color: "#8c6676",
+    color: "#80636f",
     fontSize: "14px",
     fontWeight: "850",
     marginTop: "8px",

@@ -6,13 +6,16 @@ import {
   signOut,
   sendPasswordResetEmail,
   onAuthStateChanged,
+  fetchSignInMethodsForEmail,
 } from "firebase/auth";
 import { auth, googleProvider } from "./firebase";
 
 const FirebaseAuthContext = createContext();
 
 export function FirebaseAuthProvider({ children }) {
+  
   const [currentUser, setCurrentUser] = useState(null);
+  
   const [loading, setLoading] = useState(true);
 
   const signup = async (email, password) => {
@@ -42,6 +45,10 @@ export function FirebaseAuthProvider({ children }) {
     return await sendPasswordResetEmail(auth, email);
   };
 
+  const checkEmailMethods = async (email) => {
+  return await fetchSignInMethodsForEmail(auth, email);
+   }; 
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
@@ -68,6 +75,7 @@ export function FirebaseAuthProvider({ children }) {
         loginWithGoogle,
         logout,
         resetPassword,
+        checkEmailMethods, 
       }}
     >
       {!loading && children}

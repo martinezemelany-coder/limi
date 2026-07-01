@@ -1,321 +1,355 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Eye, EyeOff, Mail, Sparkles } from "lucide-react";
 import { useFirebaseAuth } from "../lib/FirebaseAuthContext";
 
 export default function Login() {
-  const { login, signup, loginWithGoogle, resetPassword } = useFirebaseAuth();
+  const {
+    login,
+    signup,
+    loginWithGoogle,
+    resetPassword,
+    checkEmailMethods,
+  } = useFirebaseAuth();
+
   const navigate = useNavigate();
 
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [mode, setMode] = useState("email");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isSignup, setIsSignup] = useState(false);
+
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleEmailAuth = async (e) => {
+  const prettyError = (err) => {
+    if (err.code === "auth/email-already-in-use") {
+      return "This email already has a Limi account.";
+    }
+
+    if (err.code === "auth/invalid-credential") {
+      return "That email or password is wrong.";
+    }
+
+    if (err.code === "auth/weak-password") {
+      return "Password should be at least 6 characters.";
+    }
+
+    if (err.code === "auth/invalid-email") {
+      return "Please enter a valid email.";
+    }
+
+    return err.message || "Something went wrong.";
+  };
+
+  const handleGoogle = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      await loginWithGoogle();
+      navigate("/");
+    } catch (err) {
+      console.error(err);
+      setError(prettyError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEmailContinue = async (e) => {
     e.preventDefault();
     setError("");
     setSuccess("");
 
-    if (!email || !password) {
-      setError("Please enter your email and password.");
+    if (!email.trim()) {
+      setError("Enter your email first.");
       return;
     }
 
     try {
       setLoading(true);
 
-      if (isSignup) {
-        await signup(email, password);
-      } else {
-        await login(email, password);
-      }
+      const methods = checkEmailMethods
+        ? await checkEmailMethods(email.trim())
+        : [];
 
-      localStorage.setItem("isLoggedIn", "true");
-      navigate("/");
+      if (methods.includes("password")) {
+        setMode("login");
+      } else if (methods.includes("google.com")) {
+        setMode("google");
+      } else {
+        setMode("signup");
+      }
     } catch (err) {
-      console.error("EMAIL AUTH ERROR:", err);
-      setError(`${err.code || "auth/error"}: ${err.message || "Something went wrong."}`);
+      console.error(err);
+      setMode("signup");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleAuth = async () => {
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
     setError("");
     setSuccess("");
 
+    if (!password.trim()) {
+      setError("Enter your password.");
+      return;
+    }
+
     try {
       setLoading(true);
-      await loginWithGoogle();
-      localStorage.setItem("isLoggedIn", "true");
-      navigate("/");
+
+      if (mode === "signup") {
+        await signup(email.trim(), password.trim());
+        navigate("/onboarding");
+      } else {
+        await login(email.trim(), password.trim());
+        navigate("/");
+      }
     } catch (err) {
-      console.error("GOOGLE AUTH ERROR:", err);
-      setError(`${err.code || "auth/error"}: ${err.message || "Google sign-in failed."}`);
+      console.error(err);
+
+      if (err.code === "auth/email-already-in-use") {
+        setMode("existing");
+        setPassword("");
+        setError("");
+        return;
+      }
+
+      setError(prettyError(err));
     } finally {
       setLoading(false);
     }
   };
 
   const handleForgotPassword = async () => {
-    setError("");
-    setSuccess("");
-
-    if (!email) {
-      setError("Enter your email first, then click forgot password.");
+    if (!email.trim()) {
+      setError("Enter your email first.");
       return;
     }
 
     try {
       setLoading(true);
-      await resetPassword(email);
+      setError("");
+      await resetPassword(email.trim());
       setSuccess("Password reset email sent 💕 Check your inbox.");
     } catch (err) {
-      console.error("RESET PASSWORD ERROR:", err);
-      setError(`${err.code || "auth/error"}: ${err.message || "Could not send reset email."}`);
+      console.error(err);
+      setError(prettyError(err));
     } finally {
       setLoading(false);
     }
   };
 
+  const resetEmailFlow = () => {
+    setMode("email");
+    setPassword("");
+    setError("");
+    setSuccess("");
+  };
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background:
-          "linear-gradient(135deg, #fdeef4 0%, #f8dce6 45%, #f4b7c8 100%)",
-        padding: "16px",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "420px",
-          background: "rgba(255, 250, 250, 0.96)",
-          borderRadius: "34px",
-          boxShadow: "0 18px 45px rgba(231, 91, 150, 0.18)",
-          padding: "32px",
-          border: "1px solid rgba(255,255,255,0.7)",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: "24px" }}>
-          <div
-            style={{
-              width: "92px",
-              height: "92px",
-              borderRadius: "28px",
-              background: "linear-gradient(135deg, #f5a2bc, #ef87ad, #f78e9b)",
-              color: "white",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "44px",
-              fontWeight: "900",
-              boxShadow: "0 12px 28px rgba(231,91,150,0.25)",
-            }}
-          >
-            L
-          </div>
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#fdeef4] via-[#f8dce6] to-[#f4b7c8] px-4">
+      <div className="w-full max-w-md rounded-[38px] border border-white/70 bg-white/95 p-8 shadow-[0_18px_45px_rgba(231,91,150,0.18)]">
+        <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-[30px] bg-gradient-to-br from-[#f5a2bc] via-[#ef87ad] to-[#f78e9b] text-5xl font-black text-white shadow-[0_12px_28px_rgba(231,91,150,0.25)]">
+          L
         </div>
 
         <h1
-          style={{
-            fontSize: "42px",
-            fontWeight: "900",
-            textAlign: "center",
-            marginBottom: "8px",
-            color: "#ec64a8",
-            letterSpacing: "-0.05em",
-          }}
+          className="text-center text-[48px] leading-none tracking-[-0.06em] text-[#ec64a8]"
+          style={{ fontWeight: 1000 }}
         >
-          Welcome to Limi
+          Limi
         </h1>
 
-        <p
-          style={{
-            textAlign: "center",
-            color: "#80636f",
-            marginBottom: "24px",
-            fontWeight: "700",
-          }}
-        >
-          {isSignup ? "Create your account 💕" : "Sign in to continue 💕"}
+        <p className="mt-3 text-center text-lg font-black text-[#80636f]">
+          Meet your people 💕
         </p>
 
         {error && (
-          <p
-            style={{
-              color: "#b91c1c",
-              background: "#fee2e2",
-              padding: "12px",
-              borderRadius: "16px",
-              textAlign: "center",
-              marginBottom: "16px",
-              fontWeight: "700",
-              fontSize: "13px",
-              lineHeight: "1.5",
-              wordBreak: "break-word",
-            }}
-          >
+          <p className="mt-5 rounded-2xl bg-red-100 p-3 text-center text-sm font-bold text-red-700">
             {error}
           </p>
         )}
 
         {success && (
-          <p
-            style={{
-              color: "#15803d",
-              background: "#dcfce7",
-              padding: "12px",
-              borderRadius: "16px",
-              textAlign: "center",
-              marginBottom: "16px",
-              fontWeight: "700",
-            }}
-          >
+          <p className="mt-5 rounded-2xl bg-green-100 p-3 text-center text-sm font-bold text-green-700">
             {success}
           </p>
         )}
 
-        <button
-          onClick={handleGoogleAuth}
-          disabled={loading}
-          style={{
-            width: "100%",
-            border: "1px solid #f0d8e2",
-            borderRadius: "18px",
-            padding: "15px",
-            marginBottom: "24px",
-            background: "white",
-            cursor: loading ? "not-allowed" : "pointer",
-            fontWeight: "800",
-            color: "#263142",
-          }}
-        >
-          {loading ? "Please wait..." : "Continue with Google"}
-        </button>
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            marginBottom: "24px",
-          }}
-        >
-          <div style={{ height: "1px", background: "#f0d8e2", flex: 1 }} />
-          <span style={{ color: "#80636f", fontSize: "14px", fontWeight: "700" }}>
-            OR
-          </span>
-          <div style={{ height: "1px", background: "#f0d8e2", flex: 1 }} />
-        </div>
-
-        <form onSubmit={handleEmailAuth}>
-          <label style={{ display: "block", marginBottom: "8px", fontWeight: "800" }}>
-            Email
-          </label>
-
-          <input
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{
-              width: "100%",
-              border: "1px solid #f0d8e2",
-              borderRadius: "18px",
-              padding: "15px",
-              marginBottom: "16px",
-              boxSizing: "border-box",
-              outline: "none",
-            }}
-          />
-
-          <label style={{ display: "block", marginBottom: "8px", fontWeight: "800" }}>
-            Password
-          </label>
-
-          <input
-            type="password"
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{
-              width: "100%",
-              border: "1px solid #f0d8e2",
-              borderRadius: "18px",
-              padding: "15px",
-              marginBottom: "10px",
-              boxSizing: "border-box",
-              outline: "none",
-            }}
-          />
-
-          {!isSignup && (
+        {!emailOpen ? (
+          <div className="mt-8 space-y-4">
             <button
-              type="button"
-              onClick={handleForgotPassword}
+              onClick={handleGoogle}
               disabled={loading}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#d94b93",
-                fontWeight: "800",
-                cursor: loading ? "not-allowed" : "pointer",
-                marginBottom: "18px",
-                padding: 0,
-              }}
+              className="w-full rounded-full border border-[#f0d8e2] bg-white py-4 text-base font-black text-[#263142] shadow-sm disabled:opacity-60"
             >
-              Forgot password?
+              {loading ? "Please wait..." : "Continue with Google"}
             </button>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: "100%",
-              background: "linear-gradient(135deg, #f5a2bc, #ef87ad, #d94b93)",
-              color: "white",
-              border: "none",
-              borderRadius: "999px",
-              padding: "16px",
-              fontSize: "16px",
-              fontWeight: "900",
-              cursor: loading ? "not-allowed" : "pointer",
-              boxShadow: "0 10px 24px rgba(231,91,150,0.24)",
-            }}
-          >
-            {loading ? "Please wait..." : isSignup ? "Sign up" : "Sign in"}
-          </button>
-        </form>
+            <button
+              onClick={() => setEmailOpen(true)}
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-4 text-base font-black text-white shadow-[0_10px_24px_rgba(231,91,150,0.24)] disabled:opacity-60"
+            >
+              <Mail size={19} />
+              Continue with Email
+            </button>
 
-        <div style={{ textAlign: "center", marginTop: "18px" }}>
-          <button
-            type="button"
-            onClick={() => {
-              setIsSignup(!isSignup);
-              setError("");
-              setSuccess("");
-            }}
-            style={{
-              background: "none",
-              border: "none",
-              color: "#263142",
-              fontWeight: "800",
-              cursor: "pointer",
-            }}
-          >
-            {isSignup
-              ? "Already have an account? Sign in"
-              : "Need an account? Sign up"}
-          </button>
-        </div>
+            <p className="pt-3 text-center text-xs font-semibold leading-5 text-[#9a7b87]">
+              By continuing, you agree to Limi’s Terms and Privacy Policy.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-8">
+            {mode === "email" && (
+              <form onSubmit={handleEmailContinue} className="space-y-4">
+                <label className="mb-2 block text-sm font-black text-[#80636f]">
+                  What’s your email?
+                </label>
+
+                <input
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full rounded-2xl border border-[#f0d8e2] bg-white px-4 py-4 outline-none focus:border-[#ef87ad]"
+                />
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-4 text-base font-black text-white disabled:opacity-60"
+                >
+                  {loading ? "Checking..." : "Continue"}
+                </button>
+              </form>
+            )}
+
+            {(mode === "google" || mode === "existing") && (
+              <div className="space-y-4">
+                <div className="rounded-[26px] bg-[#fff6fa] p-5 text-center">
+                  <Sparkles className="mx-auto mb-3 text-[#ec64a8]" size={30} />
+
+                  <h2 className="text-xl font-black text-[#2b1d28]">
+                    This email already has a Limi account.
+                  </h2>
+
+                  <p className="mt-2 text-sm font-semibold text-[#80636f]">
+                    Continue with Google, or sign in with your password 💕
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleGoogle}
+                  disabled={loading}
+                  className="w-full rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-4 text-base font-black text-white disabled:opacity-60"
+                >
+                  Continue with Google
+                </button>
+
+                <button
+                  onClick={() => {
+                    setMode("login");
+                    setError("");
+                    setPassword("");
+                  }}
+                  className="w-full rounded-full border border-[#f1d8e3] bg-white py-4 text-sm font-black text-[#d94b93]"
+                >
+                  Sign in with password
+                </button>
+
+                <button
+                  onClick={() => {
+                    setEmail("");
+                    resetEmailFlow();
+                  }}
+                  className="w-full rounded-full bg-white py-4 text-sm font-black text-[#d94b93]"
+                >
+                  Use a different email
+                </button>
+              </div>
+            )}
+
+            {(mode === "login" || mode === "signup") && (
+              <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                <div className="rounded-[22px] bg-[#fff6fa] p-4">
+                  <p className="text-xs font-black uppercase tracking-wide text-[#d94b93]">
+                    {mode === "signup" ? "Create account" : "Welcome back"}
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-[#80636f]">
+                    {email}
+                  </p>
+                </div>
+
+                <label className="mb-2 block text-sm font-black text-[#80636f]">
+                  {mode === "signup" ? "Create password" : "Password"}
+                </label>
+
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder={
+                      mode === "signup"
+                        ? "Create a password"
+                        : "Enter your password"
+                    }
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full rounded-2xl border border-[#f0d8e2] bg-white px-4 py-4 pr-12 outline-none focus:border-[#ef87ad]"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#d94b93]"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+
+                {mode === "login" && (
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={loading}
+                    className="text-sm font-black text-[#d94b93] disabled:opacity-60"
+                  >
+                    Forgot password?
+                  </button>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-4 text-base font-black text-white disabled:opacity-60"
+                >
+                  {loading
+                    ? "Please wait..."
+                    : mode === "signup"
+                    ? "Create Limi account"
+                    : "Sign In"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail("");
+                    resetEmailFlow();
+                  }}
+                  className="w-full rounded-full bg-white py-4 text-sm font-black text-[#d94b93]"
+                >
+                  Use a different email
+                </button>
+              </form>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

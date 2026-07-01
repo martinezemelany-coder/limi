@@ -89,9 +89,9 @@ function App() {
           <Route
             path="/verify"
             element={
-              <ProtectedRoute requireOnboarding={false}>
+              <ProtectedAppPage>
                 <Verify />
-              </ProtectedRoute>
+              </ProtectedAppPage>
             }
           />
 
@@ -148,6 +148,15 @@ function App() {
               </ProtectedAppPage>
             }
           />
+
+          <Route
+            path="/profile/:uid"
+            element={
+              <ProtectedAppPage>
+                <Profile />
+              </ProtectedAppPage>
+            }
+          /> 
 
           <Route
             path="/chat/:chatId"

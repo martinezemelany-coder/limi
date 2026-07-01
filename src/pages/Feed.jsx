@@ -623,7 +623,7 @@ export default function Feed() {
               </h1>
 
               <p className="mt-2 text-lg font-bold text-[#80636f]">
-                share your world 💕
+                looking for people to do something? 💕
               </p>
             </div>
 
