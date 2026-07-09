@@ -1,5 +1,6 @@
+import { getFriendlyFirebaseErrorMessage } from "../lib/firebaseError";
 import React, { useEffect, useMemo, useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Heart,
   MessageCircle,
@@ -16,6 +17,8 @@ import {
   MoreHorizontal,
   Trash2,
   Send,
+  HelpCircle,
+  Clock3,
 } from "lucide-react";
 
 import { auth, db, storage } from "../lib/firebase";
@@ -31,17 +34,10 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  Timestamp,
   updateDoc,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-
-const navItems = [
-  { label: "Feed", to: "/", icon: Newspaper },
-  { label: "Reels", to: "/reels", icon: Film },
-  { label: "Hangouts", to: "/hangouts", icon: MapPin },
-  { label: "Match", to: "/match", icon: Heart },
-  { label: "Profile", to: "/profile", icon: User },
-];
 
 const feedGroups = {
   Hobbies: [
@@ -82,13 +78,52 @@ const feedGroups = {
   ],
 };
 
+const postTypes = {
+  hangout: {
+    label: "Hangout",
+    emoji: "📍",
+    icon: MapPin,
+    colorName: "coral",
+    gradient: "from-[#ff9a8a] via-[#ff8f8f] to-[#ff7d9a]",
+    badgeBg: "bg-[#ffe6df]",
+    badgeText: "text-[#f06f5f]",
+    softBg: "bg-[#fff0ec]",
+    border: "border-[#ffc9bd]",
+    placeholder: "Ask who wants to hang out, study, get coffee, go shopping...",
+  },
+  question: {
+    label: "Question",
+    emoji: "❓",
+    icon: HelpCircle,
+    colorName: "light pink",
+    gradient: "from-[#ffc5dc] via-[#ffb7d3] to-[#ffaed0]",
+    badgeBg: "bg-[#ffe7f1]",
+    badgeText: "text-[#db5d96]",
+    softBg: "bg-[#fff4f8]",
+    border: "border-[#ffd2e4]",
+    placeholder: "Ask for advice, opinions, recommendations, or help...",
+  },
+  general: {
+    label: "General",
+    emoji: "✨",
+    icon: Sparkles,
+    colorName: "bright pink",
+    gradient: "from-[#f4a1bd] via-[#ef77ae] to-[#ec4f9a]",
+    badgeBg: "bg-[#ffe1ef]",
+    badgeText: "text-[#e93f94]",
+    softBg: "bg-[#fff1f7]",
+    border: "border-[#f7bfd8]",
+    placeholder: "Share your world, a quote, a thought, or a cute update...",
+  },
+};
+
 const filters = [
-  { label: "All", emoji: "🌸" },
-  { label: "Saved", emoji: "🔖" },
-  { label: "Mine", emoji: "💗" },
-  { label: "Hobbies", emoji: "🎀" },
-  { label: "Career", emoji: "💼" },
-  { label: "Life", emoji: "✨" },
+  { label: "All", emoji: "🌸", type: "all" },
+  { label: "Hangouts", emoji: "📍", type: "hangout" },
+  { label: "Questions", emoji: "❓", type: "question" },
+  { label: "General", emoji: "✨", type: "general" },
+  { label: "Saved", emoji: "🔖", type: "saved" },
+  { label: "Mine", emoji: "💗", type: "mine" },
 ];
 
 function getCurrentUser() {
@@ -165,6 +200,25 @@ function formatTime(timestamp) {
   return `${days}d ago`;
 }
 
+function getTimeLeft(expiresAt) {
+  if (!expiresAt?.toDate) return "";
+
+  const diff = expiresAt.toDate().getTime() - Date.now();
+
+  if (diff <= 0) return "Expired";
+
+  const hours = Math.floor(diff / 3600000);
+  const minutes = Math.floor((diff % 3600000) / 60000);
+
+  if (hours >= 1) return `${hours}h left`;
+  return `${minutes}m left`;
+}
+
+function isPostVisible(post) {
+  if (!post.expiresAt?.toDate) return true;
+  return post.expiresAt.toDate().getTime() > Date.now();
+}
+
 async function uploadFeedImage(file) {
   if (!file) return "";
 
@@ -193,6 +247,7 @@ function ModalShell({ open, onClose, title, children }) {
           </h2>
 
           <button
+            type="button"
             onClick={onClose}
             className="flex h-11 w-11 items-center justify-center rounded-full bg-[#ffe4ef] text-[#d94b93]"
           >
@@ -211,7 +266,10 @@ function CreatePostModal({ open, onClose, currentUser }) {
   const [imageFile, setImageFile] = useState(null);
   const [groupType, setGroupType] = useState("Hobbies");
   const [group, setGroup] = useState(feedGroups.Hobbies[0]);
+  const [postType, setPostType] = useState("general");
   const [uploading, setUploading] = useState(false);
+
+  const selectedType = postTypes[postType];
 
   useEffect(() => {
     if (open) {
@@ -219,6 +277,7 @@ function CreatePostModal({ open, onClose, currentUser }) {
       setImageFile(null);
       setGroupType("Hobbies");
       setGroup(feedGroups.Hobbies[0]);
+      setPostType("general");
       setUploading(false);
     }
   }, [open]);
@@ -232,7 +291,7 @@ function CreatePostModal({ open, onClose, currentUser }) {
     e.preventDefault();
 
     if (!text.trim() && !imageFile) {
-      alert("Write a thought or add a photo first 💕");
+      alert("Write something or add a photo first 💕");
       return;
     }
 
@@ -241,6 +300,11 @@ function CreatePostModal({ open, onClose, currentUser }) {
 
       const limiUser = await getLimiUserDisplay(currentUser.uid);
       const imageUrl = imageFile ? await uploadFeedImage(imageFile) : "";
+
+      const expiresAt =
+        postType === "hangout"
+          ? Timestamp.fromDate(new Date(Date.now() + 48 * 60 * 60 * 1000))
+          : null;
 
       await addDoc(collection(db, "posts"), {
         uid: currentUser.uid,
@@ -251,6 +315,10 @@ function CreatePostModal({ open, onClose, currentUser }) {
         city: limiUser.city,
         text: text.trim(),
         image: imageUrl,
+
+        postType,
+        expiresAt,
+
         groupType,
         group,
         likesBy: [],
@@ -272,12 +340,41 @@ function CreatePostModal({ open, onClose, currentUser }) {
   return (
     <ModalShell open={open} onClose={onClose} title="Create Post">
       <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-3 gap-2">
+          {Object.entries(postTypes).map(([key, type]) => {
+            const Icon = type.icon;
+            const active = postType === key;
+
+            return (
+              <button
+                type="button"
+                key={key}
+                onClick={() => setPostType(key)}
+                className={`rounded-[22px] border px-2 py-3 text-center transition ${
+                  active
+                    ? `bg-gradient-to-r ${type.gradient} border-transparent text-white shadow-md`
+                    : "border-[#f3dbe4] bg-white text-[#80636f]"
+                }`}
+              >
+                <Icon size={20} className="mx-auto mb-1" />
+                <p className="text-xs font-black">{type.label}</p>
+              </button>
+            );
+          })}
+        </div>
+
+        {postType === "hangout" && (
+          <div className="rounded-2xl bg-[#fff0ec] px-4 py-3 text-sm font-bold text-[#d96557]">
+            📍 Hangout posts disappear after 48 hours.
+          </div>
+        )}
+
         <textarea
           rows={5}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Share a thought, ask a question, post a vibe 💕"
-          className="w-full rounded-2xl border border-[#f3dbe4] bg-white px-4 py-3 outline-none focus:border-[#ef9ab9]"
+          placeholder={selectedType.placeholder}
+          className={`w-full rounded-2xl border ${selectedType.border} ${selectedType.softBg} px-4 py-3 outline-none focus:border-[#ef9ab9]`}
         />
 
         <input
@@ -310,9 +407,9 @@ function CreatePostModal({ open, onClose, currentUser }) {
         <button
           type="submit"
           disabled={uploading}
-          className="w-full rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-4 text-lg font-black text-white shadow-[0_10px_24px_rgba(231,91,150,0.24)] disabled:opacity-60"
+          className={`w-full rounded-full bg-gradient-to-r ${selectedType.gradient} py-4 text-lg font-black text-white shadow-[0_10px_24px_rgba(231,91,150,0.24)] disabled:opacity-60`}
         >
-          {uploading ? "Posting..." : "Post to Feed 💕"}
+          {uploading ? "Posting..." : `Post ${selectedType.emoji}`}
         </button>
       </form>
     </ModalShell>
@@ -394,10 +491,10 @@ function CommentsModal({ open, onClose, post, currentUser }) {
 function PostMenuModal({ open, onClose, post, currentUser }) {
   if (!open || !post) return null;
 
-  const isOwner = 
-    post.uid === currentUser.uid ||
-    post.userEmail === currentUser.email ||
-    post.username === currentUser.name;
+  const isOwner =
+    post.uid === currentUser.uid ||
+    post.userEmail === currentUser.email ||
+    post.username === currentUser.name;
 
   const deletePost = async () => {
     if (!isOwner) {
@@ -406,7 +503,6 @@ function PostMenuModal({ open, onClose, post, currentUser }) {
     }
 
     const confirmed = window.confirm("Delete this post? This cannot be undone.");
-
     if (!confirmed) return;
 
     await deleteDoc(doc(db, "posts", post.id));
@@ -418,6 +514,7 @@ function PostMenuModal({ open, onClose, post, currentUser }) {
       <div className="space-y-3">
         {isOwner ? (
           <button
+            type="button"
             onClick={deletePost}
             className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-4 font-black text-[#ff4d6d] shadow-sm"
           >
@@ -436,6 +533,9 @@ function PostMenuModal({ open, onClose, post, currentUser }) {
 
 function PostCard({ post, currentUser, onOpenComments, onOpenMenu }) {
   const navigate = useNavigate();
+
+  const typeKey = post.postType || "general";
+  const type = postTypes[typeKey] || postTypes.general;
 
   const liked = post.likesBy?.includes(currentUser.uid);
   const saved = post.savedBy?.includes(currentUser.uid);
@@ -462,13 +562,9 @@ function PostCard({ post, currentUser, onOpenComments, onOpenMenu }) {
 
   return (
     <div className="overflow-hidden rounded-[36px] bg-[#fff9fc] shadow-[0_12px_35px_rgba(239,148,181,0.12)]">
-      <div className="bg-gradient-to-r from-[#f5a5be] via-[#f59bb4] to-[#f8a6a6] p-5 text-white">
+      <div className={`bg-gradient-to-r ${type.gradient} p-5 text-white`}>
         <div className="flex items-start justify-between">
-          <button
-            type="button"
-            onClick={openProfile}
-            className="flex items-center gap-3 text-left"
-          >
+          <button type="button" onClick={openProfile} className="flex items-center gap-3 text-left">
             {post.photoURL ? (
               <img
                 src={post.photoURL}
@@ -488,6 +584,7 @@ function PostCard({ post, currentUser, onOpenComments, onOpenMenu }) {
           </button>
 
           <button
+            type="button"
             onClick={() => onOpenMenu(post)}
             className="flex h-11 w-11 items-center justify-center rounded-full bg-white/20"
           >
@@ -497,14 +594,21 @@ function PostCard({ post, currentUser, onOpenComments, onOpenMenu }) {
       </div>
 
       <div className="space-y-4 p-5">
-        <div className="flex items-center gap-2">
-          <div className="rounded-full bg-[#ffe6f0] px-3 py-1 text-xs font-black text-[#e85da2]">
-            {post.groupType}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className={`rounded-full ${type.badgeBg} px-3 py-1 text-xs font-black ${type.badgeText}`}>
+            {type.emoji} {type.label}
           </div>
 
           <div className="rounded-full bg-[#fff1f6] px-3 py-1 text-xs font-black text-[#f089b0]">
             {formatTime(post.createdAt)}
           </div>
+
+          {typeKey === "hangout" && post.expiresAt && (
+            <div className="flex items-center gap-1 rounded-full bg-[#fff0ec] px-3 py-1 text-xs font-black text-[#e06b5d]">
+              <Clock3 size={13} />
+              {getTimeLeft(post.expiresAt)}
+            </div>
+          )}
         </div>
 
         {post.text && (
@@ -514,16 +618,13 @@ function PostCard({ post, currentUser, onOpenComments, onOpenMenu }) {
         )}
 
         {post.image && (
-          <img
-            src={post.image}
-            alt=""
-            className="w-full rounded-[28px] object-cover"
-          />
+          <img src={post.image} alt="" className="w-full rounded-[28px] object-cover" />
         )}
 
         <div className="flex items-center justify-between border-t border-[#f7dce7] pt-4">
           <div className="flex items-center gap-5">
             <button
+              type="button"
               onClick={toggleLike}
               className={`flex items-center gap-2 text-sm font-black transition ${
                 liked ? "text-[#ec5ba0]" : "text-[#9a7b87]"
@@ -534,6 +635,7 @@ function PostCard({ post, currentUser, onOpenComments, onOpenMenu }) {
             </button>
 
             <button
+              type="button"
               onClick={() => onOpenComments(post)}
               className="flex items-center gap-2 text-sm font-black text-[#9a7b87]"
             >
@@ -541,12 +643,13 @@ function PostCard({ post, currentUser, onOpenComments, onOpenMenu }) {
               {post.comments?.length || 0}
             </button>
 
-            <button className="flex items-center gap-2 text-sm font-black text-[#9a7b87]">
+            <button type="button" className="flex items-center gap-2 text-sm font-black text-[#9a7b87]">
               <Share2 size={20} />
             </button>
           </div>
 
           <button
+            type="button"
             onClick={toggleSave}
             className={`transition ${saved ? "text-[#ec5ba0]" : "text-[#9a7b87]"}`}
           >
@@ -562,7 +665,7 @@ export default function Feed() {
   const currentUser = useMemo(() => getFallbackUserDisplay(), []);
 
   const [posts, setPosts] = useState([]);
-  const [activeFilter, setActiveFilter] = useState("All");
+  const [activeFilter, setActiveFilter] = useState("all");
 
   const [createOpen, setCreateOpen] = useState(false);
   const [commentsPost, setCommentsPost] = useState(null);
@@ -572,10 +675,12 @@ export default function Feed() {
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((docItem) => ({
-        id: docItem.id,
-        ...docItem.data(),
-      }));
+      const data = snapshot.docs
+        .map((docItem) => ({
+          id: docItem.id,
+          ...docItem.data(),
+        }))
+        .filter(isPostVisible);
 
       setPosts(data);
     });
@@ -584,29 +689,17 @@ export default function Feed() {
   }, []);
 
   const filteredPosts = useMemo(() => {
-    if (activeFilter === "All") return posts;
+    if (activeFilter === "all") return posts;
 
-    if (activeFilter === "Saved") {
+    if (activeFilter === "saved") {
       return posts.filter((post) => post.savedBy?.includes(currentUser.uid));
     }
 
-    if (activeFilter === "Mine") {
+    if (activeFilter === "mine") {
       return posts.filter((post) => post.uid === currentUser.uid);
     }
 
-    if (activeFilter === "Hobbies") {
-      return posts.filter((post) => post.groupType === "Hobbies");
-    }
-
-    if (activeFilter === "Career") {
-      return posts.filter((post) => post.groupType === "Career");
-    }
-
-    if (activeFilter === "Life") {
-      return posts.filter((post) => post.groupType === "Life");
-    }
-
-    return posts;
+    return posts.filter((post) => (post.postType || "general") === activeFilter);
   }, [posts, activeFilter, currentUser.uid]);
 
   return (
@@ -623,11 +716,12 @@ export default function Feed() {
               </h1>
 
               <p className="mt-2 text-lg font-bold text-[#80636f]">
-                looking for people to do something? 💕
+                share, ask, or make plans 💕
               </p>
             </div>
 
             <button
+              type="button"
               onClick={() => setCreateOpen(true)}
               className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-[#f5a8bf] via-[#ef77ae] to-[#f97d8b] text-white shadow-[0_12px_24px_rgba(237,102,157,0.3)]"
             >
@@ -636,6 +730,7 @@ export default function Feed() {
           </div>
 
           <button
+            type="button"
             onClick={() => setCreateOpen(true)}
             className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-5 text-xl font-black text-white shadow-[0_12px_24px_rgba(237,102,157,0.22)]"
           >
@@ -646,10 +741,11 @@ export default function Feed() {
           <div className="mt-6 flex gap-3 overflow-x-auto pb-1">
             {filters.map((filter) => (
               <button
-                key={filter.label}
-                onClick={() => setActiveFilter(filter.label)}
+                key={filter.type}
+                type="button"
+                onClick={() => setActiveFilter(filter.type)}
                 className={`whitespace-nowrap rounded-full px-5 py-3 text-sm font-black transition ${
-                  activeFilter === filter.label
+                  activeFilter === filter.type
                     ? "bg-gradient-to-r from-[#f29dbc] to-[#f06aa8] text-white"
                     : "border border-[#f1d8e3] bg-white text-[#6f5d66]"
                 }`}
@@ -680,7 +776,7 @@ export default function Feed() {
               </h3>
 
               <p className="mt-2 text-sm font-semibold text-[#80636f]">
-                Be the first girlie to post something 💕
+                Be the first one to post something 💕
               </p>
             </div>
           )}

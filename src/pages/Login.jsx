@@ -1,3 +1,4 @@
+import { getFriendlyFirebaseErrorMessage } from "../lib/firebaseError";
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Mail, Sparkles } from "lucide-react";

@@ -1,3 +1,4 @@
+import { getFriendlyFirebaseErrorMessage } from "../lib/firebaseError";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Heart,

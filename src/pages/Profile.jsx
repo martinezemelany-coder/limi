@@ -1,3 +1,4 @@
+import { getFriendlyFirebaseErrorMessage } from "../lib/firebaseError";
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -18,6 +19,11 @@ import {
   Zap,
   Newspaper,
   MessageCircleHeart,
+  SlidersHorizontal,
+  FileText,
+  EyeOff,
+  Flag,
+  Mail,
 } from "lucide-react";
 
 import { auth, db, storage } from "../lib/firebase";
@@ -69,6 +75,47 @@ const interestOptions = [
   "Relationship",
 ];
 
+const friendActivityOptions = [
+  "Coffee Dates",
+  "Brunch",
+  "Beach Days",
+  "Study Together",
+  "Gym Buddy",
+  "Pilates / Yoga",
+  "Shopping",
+  "Night Out",
+  "Movie Night",
+  "Dinner",
+  "Content Days",
+  "Travel",
+  "Events",
+  "Self Care Days",
+  "Walks",
+];
+
+const socialEnergyOptions = [
+  "Introvert",
+  "Introverted Extrovert",
+  "Ambivert",
+  "Extrovert",
+  "Depends on the day",
+];
+
+const vibeOptions = [
+  "Soft Girl",
+  "Funny",
+  "Chill",
+  "Spontaneous",
+  "Deep Talker",
+  "Creative",
+  "Ambitious",
+  "Outgoing",
+  "Calm",
+  "Main Character",
+  "Loyal",
+  "Low Maintenance",
+];
+
 function getDefaultProfile() {
   const user = auth.currentUser;
 
@@ -77,21 +124,24 @@ function getDefaultProfile() {
     email: user?.email || "",
     name: user?.displayName || user?.email?.split("@")[0] || "Limi Girl",
     age: "",
-    city: "Miami, FL",
+    city: "",
     bio: "Excited to meet new girlies 💕",
     interests: [],
     friendActivities: [],
-    activities: [],
     socialEnergy: "",
     vibes: [],
-    vibe: [],
+    distanceMiles: 25,
     photoURL: user?.photoURL || "",
     profileImage: "",
     verified: false,
     verificationStatus: "not_verified",
     completedOnboarding: false,
     notifications: true,
+    pushNotifications: false,
     showCity: true,
+    allowTracking: false,
+    privacyAccepted: false,
+    communityGuidelinesAccepted: false,
   };
 }
 
@@ -100,7 +150,6 @@ function getArrayValue(...values) {
     if (Array.isArray(value) && value.length) return value;
     if (typeof value === "string" && value.trim()) return [value];
   }
-
   return [];
 }
 
@@ -108,10 +157,7 @@ function formatPostDate(value) {
   if (!value) return "";
 
   try {
-    if (value.toDate) {
-      return value.toDate().toLocaleDateString();
-    }
-
+    if (value.toDate) return value.toDate().toLocaleDateString();
     return new Date(value).toLocaleDateString();
   } catch {
     return "";
@@ -133,6 +179,7 @@ function ModalShell({ open, onClose, title, children }) {
           </h2>
 
           <button
+            type="button"
             onClick={onClose}
             className="flex h-11 w-11 items-center justify-center rounded-full bg-[#ffe4ef] text-[#d94b93]"
           >
@@ -146,7 +193,7 @@ function ModalShell({ open, onClose, title, children }) {
   );
 }
 
-function InterestButton({ label, active, onClick }) {
+function PillButton({ label, active, onClick }) {
   return (
     <button
       type="button"
@@ -167,23 +214,46 @@ function EditProfileModal({ open, onClose, profile, onSave }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (open) setForm(profile);
-  }, [open, profile]);
-
-  const toggleInterest = (interest) => {
-    const current = form.interests || [];
-
-    if (current.includes(interest)) {
+    if (open) {
       setForm({
-        ...form,
-        interests: current.filter((item) => item !== interest),
-      });
-    } else {
-      setForm({
-        ...form,
-        interests: [...current, interest],
+        ...profile,
+        interests: getArrayValue(profile.interests),
+        friendActivities: getArrayValue(
+          profile.friendActivities,
+          profile.activities,
+          profile.friendOptions,
+          profile.whatDoYouDoWithFriends
+        ),
+        socialEnergy:
+          Array.isArray(profile.socialEnergy)
+            ? profile.socialEnergy[0] || ""
+            : profile.socialEnergy || "",
+        vibes: getArrayValue(profile.vibes, profile.vibe),
+        distanceMiles: Number(profile.distanceMiles || 25),
       });
     }
+  }, [open, profile]);
+
+  const toggleArrayValue = (field, value, max = null) => {
+    const current = form[field] || [];
+
+    if (current.includes(value)) {
+      setForm({
+        ...form,
+        [field]: current.filter((item) => item !== value),
+      });
+      return;
+    }
+
+    if (max && current.length >= max) {
+      alert(`You can choose up to ${max} 💕`);
+      return;
+    }
+
+    setForm({
+      ...form,
+      [field]: [...current, value],
+    });
   };
 
   const handleSave = async () => {
@@ -191,6 +261,9 @@ function EditProfileModal({ open, onClose, profile, onSave }) {
       setSaving(true);
       await onSave(form);
       onClose();
+    } catch (error) {
+      console.error(error);
+      alert(getFriendlyFirebaseErrorMessage(error));
     } finally {
       setSaving(false);
     }
@@ -198,7 +271,7 @@ function EditProfileModal({ open, onClose, profile, onSave }) {
 
   return (
     <ModalShell open={open} onClose={onClose} title="Edit Profile">
-      <div className="space-y-4">
+      <div className="space-y-5">
         <div>
           <label className="mb-2 block text-sm font-black text-[#80636f]">
             Name
@@ -229,6 +302,7 @@ function EditProfileModal({ open, onClose, profile, onSave }) {
             <input
               value={form.city || ""}
               onChange={(e) => setForm({ ...form, city: e.target.value })}
+              placeholder="Orlando, FL"
               className="w-full rounded-2xl border border-[#f3dbe4] bg-white px-4 py-3 outline-none focus:border-[#ef9ab9]"
             />
           </div>
@@ -246,21 +320,96 @@ function EditProfileModal({ open, onClose, profile, onSave }) {
           />
         </div>
 
+        <div className="rounded-[28px] bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-black text-[#80636f]">Distance Preference</p>
+            <p className="text-lg font-black text-[#ec64a8]">
+              {form.distanceMiles || 25} miles
+            </p>
+          </div>
+
+          <input
+            type="range"
+            min="5"
+            max="100"
+            step="5"
+            value={form.distanceMiles || 25}
+            onChange={(e) =>
+              setForm({ ...form, distanceMiles: Number(e.target.value) })
+            }
+            className="w-full accent-[#ec64a8]"
+          />
+
+          <p className="mt-2 text-xs font-bold text-[#80636f]">
+            This controls who shows up on Match, Hangouts, and Feed later.
+          </p>
+        </div>
+
         <div>
           <p className="mb-3 text-sm font-black text-[#80636f]">Interests</p>
           <div className="flex flex-wrap gap-2">
             {interestOptions.map((interest) => (
-              <InterestButton
+              <PillButton
                 key={interest}
                 label={interest}
                 active={(form.interests || []).includes(interest)}
-                onClick={() => toggleInterest(interest)}
+                onClick={() => toggleArrayValue("interests", interest)}
               />
             ))}
           </div>
         </div>
 
+        <div>
+          <p className="mb-3 text-sm font-black text-[#80636f]">
+            What I’d Do With Friends
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {friendActivityOptions.map((activity) => (
+              <PillButton
+                key={activity}
+                label={activity}
+                active={(form.friendActivities || []).includes(activity)}
+                onClick={() => toggleArrayValue("friendActivities", activity)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-3 text-sm font-black text-[#80636f]">Social Energy</p>
+          <div className="flex flex-wrap gap-2">
+            {socialEnergyOptions.map((energy) => (
+              <PillButton
+                key={energy}
+                label={energy}
+                active={form.socialEnergy === energy}
+                onClick={() => setForm({ ...form, socialEnergy: energy })}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-3 text-sm font-black text-[#80636f]">
+            Vibe / Personality
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {vibeOptions.map((vibe) => (
+              <PillButton
+                key={vibe}
+                label={vibe}
+                active={(form.vibes || []).includes(vibe)}
+                onClick={() => toggleArrayValue("vibes", vibe, 3)}
+              />
+            ))}
+          </div>
+          <p className="mt-2 text-xs font-bold text-[#80636f]">
+            Choose up to 3 vibes.
+          </p>
+        </div>
+
         <button
+          type="button"
           onClick={handleSave}
           disabled={saving}
           className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-4 text-lg font-black text-white shadow-[0_12px_24px_rgba(237,102,157,0.22)] disabled:opacity-60"
@@ -273,12 +422,46 @@ function EditProfileModal({ open, onClose, profile, onSave }) {
   );
 }
 
+function SettingsRow({ icon, title, subtitle, onClick, right }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center justify-between rounded-[24px] bg-white p-4 text-left shadow-sm"
+    >
+      <div className="flex items-center gap-3">
+        {icon}
+        <div>
+          <p className="font-black text-[#2b1d28]">{title}</p>
+          <p className="text-sm font-semibold text-[#80636f]">{subtitle}</p>
+        </div>
+      </div>
+      {right}
+    </button>
+  );
+}
+
+function ToggleSwitch({ on }) {
+  return (
+    <span className={`relative h-8 w-14 rounded-full ${on ? "bg-[#ec64a8]" : "bg-gray-300"}`}>
+      <span
+        className={`absolute top-1 h-6 w-6 rounded-full bg-white transition ${
+          on ? "right-1" : "left-1"
+        }`}
+      />
+    </span>
+  );
+}
+
 function SettingsModal({
   open,
   onClose,
   profile,
   onToggleNotifications,
   onToggleCity,
+  onToggleTracking,
+  onAcceptPrivacy,
+  onAcceptGuidelines,
   onLogout,
   onDeleteAccount,
   onVerify,
@@ -289,80 +472,89 @@ function SettingsModal({
   return (
     <ModalShell open={open} onClose={onClose} title="Settings">
       <div className="space-y-3">
-        <button
+        <SettingsRow
           onClick={onVerify}
-          className="flex w-full items-center justify-between rounded-[24px] bg-white p-4 text-left shadow-sm"
-        >
-          <div className="flex items-center gap-3">
-            <ShieldCheck className="text-[#ec64a8]" size={22} />
-            <div>
-              <p className="font-black text-[#2b1d28]">Identity Verification</p>
-              <p className="text-sm font-semibold text-[#80636f]">
-                {profile.verificationStatus === "verified"
-                  ? "Verified"
-                  : profile.verificationStatus === "pending"
-                  ? "Pending review"
-                  : "Verify your account"}
-              </p>
-            </div>
-          </div>
-        </button>
+          icon={<ShieldCheck className="text-[#ec64a8]" size={22} />}
+          title="Identity Verification"
+          subtitle={
+            profile.verificationStatus === "verified"
+              ? "Verified"
+              : profile.verificationStatus === "pending"
+              ? "Pending review"
+              : "Verify your account"
+          }
+        />
 
-        <button
+        <SettingsRow
           onClick={onToggleNotifications}
-          className="flex w-full items-center justify-between rounded-[24px] bg-white p-4 text-left shadow-sm"
-        >
-          <div className="flex items-center gap-3">
-            <Bell className="text-[#ec64a8]" size={22} />
-            <div>
-              <p className="font-black text-[#2b1d28]">Notifications</p>
-              <p className="text-sm font-semibold text-[#80636f]">
-                {profile.notifications ? "On" : "Off"}
-              </p>
-            </div>
-          </div>
+          icon={<Bell className="text-[#ec64a8]" size={22} />}
+          title="Notifications"
+          subtitle={profile.notifications ? "On" : "Off"}
+          right={<ToggleSwitch on={profile.notifications} />}
+        />
 
-          <span
-            className={`relative h-8 w-14 rounded-full ${
-              profile.notifications ? "bg-[#ec64a8]" : "bg-gray-300"
-            }`}
-          >
-            <span
-              className={`absolute top-1 h-6 w-6 rounded-full bg-white transition ${
-                profile.notifications ? "right-1" : "left-1"
-              }`}
-            />
-          </span>
-        </button>
-
-        <button
+        <SettingsRow
           onClick={onToggleCity}
-          className="flex w-full items-center justify-between rounded-[24px] bg-white p-4 text-left shadow-sm"
-        >
-          <div className="flex items-center gap-3">
-            <Lock className="text-[#ec64a8]" size={22} />
-            <div>
-              <p className="font-black text-[#2b1d28]">Show City</p>
-              <p className="text-sm font-semibold text-[#80636f]">
-                {profile.showCity ? "Visible on profile" : "Hidden"}
-              </p>
-            </div>
-          </div>
+          icon={<Lock className="text-[#ec64a8]" size={22} />}
+          title="Show City"
+          subtitle={profile.showCity ? "Visible on profile" : "Hidden"}
+          right={<ToggleSwitch on={profile.showCity} />}
+        />
 
-          <span
-            className={`relative h-8 w-14 rounded-full ${
-              profile.showCity ? "bg-[#ec64a8]" : "bg-gray-300"
-            }`}
-          >
-            <span
-              className={`absolute top-1 h-6 w-6 rounded-full bg-white transition ${
-                profile.showCity ? "right-1" : "left-1"
-              }`}
-            />
-          </span>
-        </button>
+        <SettingsRow
+          onClick={onToggleTracking}
+          icon={<EyeOff className="text-[#ec64a8]" size={22} />}
+          title="App Tracking"
+          subtitle={
+            profile.allowTracking
+              ? "Allowed for analytics/ads if added later"
+              : "Off — Limi should not track across apps"
+          }
+          right={<ToggleSwitch on={profile.allowTracking} />}
+        />
+
+        <div className="rounded-[28px] bg-[#fff0f6] p-4">
+          <p className="font-black text-[#2b1d28]">App Store Privacy Checklist</p>
+          <p className="mt-2 text-sm font-semibold leading-6 text-[#80636f]">
+            Limi collects profile info, photos, location/city, user posts,
+            messages, friends, and safety reports. Before App Store launch, add
+            a real Privacy Policy URL in App Store Connect.
+          </p>
+        </div>
+
+        <SettingsRow
+          onClick={onAcceptPrivacy}
+          icon={<FileText className="text-[#ec64a8]" size={22} />}
+          title="Privacy Policy"
+          subtitle={profile.privacyAccepted ? "Accepted" : "Review and accept"}
+          right={<ToggleSwitch on={profile.privacyAccepted} />}
+        />
+
+        <SettingsRow
+          onClick={onAcceptGuidelines}
+          icon={<Flag className="text-[#ec64a8]" size={22} />}
+          title="Community Guidelines"
+          subtitle={
+            profile.communityGuidelinesAccepted
+              ? "Accepted"
+              : "Required for user safety"
+          }
+          right={<ToggleSwitch on={profile.communityGuidelinesAccepted} />}
+        />
+
+        <SettingsRow
+          onClick={() =>
+            alert(
+              "Support email placeholder: add your real support email before App Store submission 💕"
+            )
+          }
+          icon={<Mail className="text-[#ec64a8]" size={22} />}
+          title="Support"
+          subtitle="Contact / report a problem"
+        />
 
         <button
+          type="button"
           onClick={onLogout}
           className="flex w-full items-center gap-3 rounded-[24px] bg-white p-4 font-black text-[#d94b93] shadow-sm"
         >
@@ -371,6 +563,7 @@ function SettingsModal({
         </button>
 
         <button
+          type="button"
           onClick={onDeleteAccount}
           className="mt-4 flex w-full items-center justify-center gap-2 rounded-full border border-red-200 bg-white py-4 text-lg font-black text-red-500"
         >
@@ -414,6 +607,25 @@ function ProfileInfoCard({ icon, title, items, emptyText }) {
   );
 }
 
+function DistanceCard({ distanceMiles }) {
+  return (
+    <div className="mt-6 rounded-[34px] bg-white p-5 shadow-sm">
+      <div className="flex items-center gap-2">
+        <SlidersHorizontal size={20} className="text-[#ec64a8]" />
+        <h3 className="text-xl font-black text-[#2b1d28]">Distance Preference</h3>
+      </div>
+
+      <p className="mt-3 text-3xl font-black text-[#ec64a8]">
+        {distanceMiles || 25} miles
+      </p>
+
+      <p className="mt-1 text-sm font-semibold text-[#80636f]">
+        Used for Match, Hangouts, and Feed distance filtering.
+      </p>
+    </div>
+  );
+}
+
 function FeedPostsCard({ posts }) {
   const recentPosts = posts.slice(0, 3);
 
@@ -429,17 +641,8 @@ function FeedPostsCard({ posts }) {
           <div className="space-y-3">
             {recentPosts.map((post) => {
               const postText =
-                post.text ||
-                post.caption ||
-                post.content ||
-                post.message ||
-                "";
-
-              const postImage =
-                post.image ||
-                post.imageURL ||
-                post.imageUrl ||
-                "";
+                post.text || post.caption || post.content || post.message || "";
+              const postImage = post.image || post.imageURL || post.imageUrl || "";
 
               return (
                 <div
@@ -465,7 +668,7 @@ function FeedPostsCard({ posts }) {
                           {post.username || "Limi Girl"}
                         </p>
                         <p className="text-xs font-bold text-[#ad8a99]">
-                          {post.group || post.groupType || "Post"}
+                          {post.postType || post.group || post.groupType || "Post"}
                         </p>
                       </div>
                     </div>
@@ -570,11 +773,24 @@ export default function Profile() {
         const snap = await getDoc(userRef);
 
         if (snap.exists()) {
+          const data = snap.data();
+
           setProfile({
             ...getDefaultProfile(),
-            ...snap.data(),
+            ...data,
             uid: profileUid,
-            email: snap.data().email || "",
+            email: data.email || "",
+            distanceMiles: Number(data.distanceMiles || 25),
+            friendActivities: getArrayValue(
+              data.friendActivities,
+              data.activities,
+              data.friendOptions,
+              data.whatDoYouDoWithFriends
+            ),
+            socialEnergy: Array.isArray(data.socialEnergy)
+              ? data.socialEnergy[0] || ""
+              : data.socialEnergy || "",
+            vibes: getArrayValue(data.vibes, data.vibe),
           });
         } else if (isOwnProfile && user) {
           const defaultProfile = getDefaultProfile();
@@ -596,7 +812,7 @@ export default function Profile() {
         }
       } catch (error) {
         console.error("Error loading profile:", error);
-        alert("Could not load profile.");
+        alert(getFriendlyFirebaseErrorMessage(error));
       } finally {
         setLoading(false);
       }
@@ -606,52 +822,60 @@ export default function Profile() {
   }, [profileUid, isOwnProfile, user]);
 
   useEffect(() => {
-  async function loadUserPosts() {
-    if (!profileUid) return;
+    async function loadUserPosts() {
+      if (!profileUid) return;
 
-    try {
-      const postsQuery = query(
-        collection(db, "posts"),
-        orderBy("createdAt", "desc")
-      );
-
-      const postsSnap = await getDocs(postsQuery);
-
-      const allPosts = postsSnap.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      }));
-
-      const userPosts = allPosts.filter((post) => {
-        return (
-          post.uid === profileUid ||
-          post.userEmail === profile.email ||
-          post.username === profile.name
+      try {
+        const postsQuery = query(
+          collection(db, "posts"),
+          orderBy("createdAt", "desc")
         );
-      });
 
-      setFeedPosts(userPosts);
-    } catch (error) {
-      console.error("Error loading profile posts:", error);
+        const postsSnap = await getDocs(postsQuery);
+
+        const allPosts = postsSnap.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }));
+
+        const userPosts = allPosts.filter((post) => {
+          return (
+            post.uid === profileUid ||
+            post.userEmail === profile.email ||
+            post.username === profile.name
+          );
+        });
+
+        setFeedPosts(userPosts);
+      } catch (error) {
+        console.error("Error loading profile posts:", error);
+      }
     }
-  }
 
-  loadUserPosts();
-}, [profileUid, profile.email, profile.name]);
+    loadUserPosts();
+  }, [profileUid, profile.email, profile.name]);
 
   const saveProfile = async (newProfile) => {
     if (!user || !isOwnProfile) return;
 
     const cleanProfile = {
       ...newProfile,
+      uid: user.uid,
+      email: user.email || "",
       age: newProfile.age || "",
+      city: newProfile.city || "",
       interests: newProfile.interests || [],
       friendActivities: newProfile.friendActivities || [],
-      activities: newProfile.activities || [],
       socialEnergy: newProfile.socialEnergy || "",
       vibes: newProfile.vibes || [],
+      distanceMiles: Number(newProfile.distanceMiles || 25),
       updatedAt: serverTimestamp(),
     };
+
+    delete cleanProfile.activities;
+    delete cleanProfile.vibe;
+    delete cleanProfile.friendOptions;
+    delete cleanProfile.whatDoYouDoWithFriends;
 
     await setDoc(doc(db, "users", user.uid), cleanProfile, { merge: true });
     setProfile((prev) => ({ ...prev, ...cleanProfile }));
@@ -669,7 +893,6 @@ export default function Profile() {
       );
 
       await uploadBytes(photoRef, file);
-
       const photoURL = await getDownloadURL(photoRef);
 
       await updateDoc(doc(db, "users", user.uid), {
@@ -685,7 +908,7 @@ export default function Profile() {
       }));
     } catch (error) {
       console.error(error);
-      alert("Could not upload photo.");
+      alert(getFriendlyFirebaseErrorMessage(error));
     } finally {
       setUploadingPhoto(false);
     }
@@ -728,7 +951,7 @@ export default function Profile() {
 
       const chatsQuery = query(
         collection(db, "chats"),
-        where("members", "array-contains", user.uid)
+        where("memberIds", "array-contains", user.uid)
       );
 
       const chatsSnap = await getDocs(chatsQuery);
@@ -737,10 +960,11 @@ export default function Profile() {
         chatsSnap.docs.map(async (chatDoc) => {
           const chat = chatDoc.data();
 
-          if ((chat.members || []).length <= 1) {
+          if ((chat.memberIds || []).length <= 1) {
             await deleteDoc(doc(db, "chats", chatDoc.id));
           } else {
             await updateDoc(doc(db, "chats", chatDoc.id), {
+              memberIds: arrayRemove(user.uid),
               members: arrayRemove(user.uid),
               updatedAt: serverTimestamp(),
             });
@@ -782,14 +1006,25 @@ export default function Profile() {
         return;
       }
 
-      alert(error.message || "Could not delete account.");
+      alert(getFriendlyFirebaseErrorMessage(error));
     }
   };
 
   const toggleNotifications = async () => {
+    const nextValue = !profile.notifications;
+
+    if (nextValue && typeof Notification !== "undefined") {
+      try {
+        await Notification.requestPermission();
+      } catch {
+        // Native/mobile wrappers may not support browser Notification API yet.
+      }
+    }
+
     await saveProfile({
       ...profile,
-      notifications: !profile.notifications,
+      notifications: nextValue,
+      pushNotifications: nextValue,
     });
   };
 
@@ -800,13 +1035,36 @@ export default function Profile() {
     });
   };
 
+  const toggleTracking = async () => {
+    await saveProfile({
+      ...profile,
+      allowTracking: !profile.allowTracking,
+    });
+  };
+
+  const acceptPrivacy = async () => {
+    await saveProfile({
+      ...profile,
+      privacyAccepted: true,
+      privacyAcceptedAt: serverTimestamp(),
+    });
+  };
+
+  const acceptGuidelines = async () => {
+    await saveProfile({
+      ...profile,
+      communityGuidelinesAccepted: true,
+      communityGuidelinesAcceptedAt: serverTimestamp(),
+    });
+  };
+
   const stats = useMemo(
     () => [
       { label: "Interests", value: profile.interests?.length || 0 },
-      { label: "Verified", value: profile.verified ? "Yes" : "No" },
+      { label: "Distance", value: `${profile.distanceMiles || 25} mi` },
       {
         label: "City",
-        value: profile.showCity ? profile.city || "Hidden" : "Hidden",
+        value: profile.showCity ? profile.city || "Not set" : "Hidden",
       },
     ],
     [profile]
@@ -843,6 +1101,7 @@ export default function Profile() {
 
               {isOwnProfile && (
                 <button
+                  type="button"
                   onClick={() => setSettingsOpen(true)}
                   className="flex h-14 w-14 items-center justify-center rounded-full bg-white/20 backdrop-blur"
                 >
@@ -895,8 +1154,7 @@ export default function Profile() {
                   {profile.age ? `, ${profile.age}` : ""}
                 </h2>
 
-                {(profile.verified ||
-                  profile.verificationStatus === "verified") && (
+                {(profile.verified || profile.verificationStatus === "verified") && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-[#eef9ee] px-3 py-1 text-xs font-black text-green-600">
                     <ShieldCheck size={14} />
                     Verified
@@ -904,7 +1162,7 @@ export default function Profile() {
                 )}
               </div>
 
-              {profile.showCity && (
+              {profile.showCity && profile.city && (
                 <div className="mt-2 flex items-center gap-2 text-sm font-black text-[#80636f]">
                   <MapPin size={16} className="text-[#ec64a8]" />
                   {profile.city}
@@ -934,6 +1192,7 @@ export default function Profile() {
               {isOwnProfile && (
                 <div className="mt-5 grid w-full grid-cols-2 gap-3">
                   <button
+                    type="button"
                     onClick={() => setEditOpen(true)}
                     className="flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-4 text-sm font-black text-white shadow-[0_10px_24px_rgba(237,102,157,0.20)]"
                   >
@@ -942,6 +1201,7 @@ export default function Profile() {
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => navigate("/verify")}
                     className="flex items-center justify-center gap-2 rounded-full border border-[#f1d8e3] bg-white py-4 text-sm font-black text-[#d94b93]"
                   >
@@ -953,6 +1213,8 @@ export default function Profile() {
             </div>
           </div>
         </div>
+
+        <DistanceCard distanceMiles={profile.distanceMiles} />
 
         <ProfileInfoCard
           icon={<Heart size={20} className="text-[#ec64a8]" />}
@@ -1005,6 +1267,13 @@ export default function Profile() {
                   : "Not Verified"}
               </span>
             </p>
+
+            <p className="mt-2 text-sm font-semibold leading-6 text-[#80636f]">
+              Notifications:{" "}
+              <span className="font-black text-[#ec64a8]">
+                {profile.notifications ? "On" : "Off"}
+              </span>
+            </p>
           </div>
         )}
       </div>
@@ -1024,6 +1293,9 @@ export default function Profile() {
         profile={profile}
         onToggleNotifications={toggleNotifications}
         onToggleCity={toggleCity}
+        onToggleTracking={toggleTracking}
+        onAcceptPrivacy={acceptPrivacy}
+        onAcceptGuidelines={acceptGuidelines}
         onLogout={logout}
         onDeleteAccount={deleteAccount}
         onVerify={() => navigate("/verify")}

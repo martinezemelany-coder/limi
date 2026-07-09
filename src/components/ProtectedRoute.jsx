@@ -8,12 +8,12 @@ export default function ProtectedRoute({ children, requireOnboarding = true }) {
   const { currentUser, loading } = useFirebaseAuth();
 
   const [checkingProfile, setCheckingProfile] = useState(true);
-  const [hasProfile, setHasProfile] = useState(false);
+  const [completedOnboarding, setCompletedOnboarding] = useState(false);
 
   useEffect(() => {
     async function checkUserProfile() {
       if (!currentUser) {
-        setHasProfile(false);
+        setCompletedOnboarding(false);
         setCheckingProfile(false);
         return;
       }
@@ -24,10 +24,14 @@ export default function ProtectedRoute({ children, requireOnboarding = true }) {
         const userRef = doc(db, "users", currentUser.uid);
         const snap = await getDoc(userRef);
 
-        setHasProfile(snap.exists());
+        if (snap.exists()) {
+          setCompletedOnboarding(snap.data().completedOnboarding === true);
+        } else {
+          setCompletedOnboarding(false);
+        }
       } catch (error) {
         console.error("Error checking user profile:", error);
-        setHasProfile(false);
+        setCompletedOnboarding(false);
       } finally {
         setCheckingProfile(false);
       }
@@ -39,19 +43,23 @@ export default function ProtectedRoute({ children, requireOnboarding = true }) {
   }, [currentUser, loading]);
 
   if (loading || checkingProfile) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#fff6fa]">
+        <p className="text-xl font-black text-[#ec64a8]">Loading Limi 💕</p>
+      </div>
+    );
   }
 
   if (!currentUser) {
     return <Navigate to="/login" replace />;
   }
 
-  if (requireOnboarding && !hasProfile) {
+  if (requireOnboarding && !completedOnboarding) {
     return <Navigate to="/onboarding" replace />;
   }
 
-  if (!requireOnboarding && hasProfile) {
-    return <Navigate to="/profile" replace />;
+  if (!requireOnboarding && completedOnboarding) {
+    return <Navigate to="/" replace />;
   }
 
   return children;
