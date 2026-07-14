@@ -8,12 +8,9 @@ import {
   Image as ImageIcon,
   Plus,
   X,
-  User,
-  Film,
+  Camera,
   MapPin,
-  Newspaper,
   Sparkles,
-  Share2,
   MoreHorizontal,
   Trash2,
   Send,
@@ -53,6 +50,7 @@ const feedGroups = {
     "Fashion",
     "Foodie",
     "Travel",
+    "Other",
   ],
   Career: [
     "Technology",
@@ -65,6 +63,7 @@ const feedGroups = {
     "Entrepreneur",
     "Media",
     "Science",
+    "Other",
   ],
   Life: [
     "Side Hustle",
@@ -75,7 +74,9 @@ const feedGroups = {
     "Single",
     "Glow Up",
     "Relationship",
+    "Other",
   ],
+  Other: ["Other"],
 };
 
 const postTypes = {
@@ -84,7 +85,7 @@ const postTypes = {
     emoji: "📍",
     icon: MapPin,
     colorName: "coral",
-    gradient: "from-[#ff9a8a] via-[#ff8f8f] to-[#ff7d9a]",
+    gradient: "from-[#ffda9c] to-[#fe5270]",
     badgeBg: "bg-[#ffe6df]",
     badgeText: "text-[#f06f5f]",
     softBg: "bg-[#fff0ec]",
@@ -95,20 +96,20 @@ const postTypes = {
     label: "Question",
     emoji: "❓",
     icon: HelpCircle,
-    colorName: "light pink",
-    gradient: "from-[#ffc5dc] via-[#ffb7d3] to-[#ffaed0]",
-    badgeBg: "bg-[#ffe7f1]",
-    badgeText: "text-[#db5d96]",
-    softBg: "bg-[#fff4f8]",
-    border: "border-[#ffd2e4]",
+    colorName: "bahama blue",
+    gradient: "from-[#ffc5de] to-[#62cee3]",
+    badgeBg: "bg-[#f4e5ff]",
+    badgeText: "text-[#1fa5ff]",
+    softBg: "bg-[#fcf5ff]",
+    border: "border-[#e9c7ff]",
     placeholder: "Ask for advice, opinions, recommendations, or help...",
   },
   general: {
     label: "General",
     emoji: "✨",
     icon: Sparkles,
-    colorName: "bright pink",
-    gradient: "from-[#f4a1bd] via-[#ef77ae] to-[#ec4f9a]",
+    colorName: "soft rose",
+    gradient: "from-[#eb6aaa] to-[#ff96a9]",
     badgeBg: "bg-[#ffe1ef]",
     badgeText: "text-[#e93f94]",
     softBg: "bg-[#fff1f7]",
@@ -290,6 +291,11 @@ function CreatePostModal({ open, onClose, currentUser }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!currentUser?.uid || currentUser.uid === "guest") {
+      alert("Please sign in first.");
+      return;
+    }
+
     if (!text.trim() && !imageFile) {
       alert("Write something or add a photo first 💕");
       return;
@@ -377,12 +383,16 @@ function CreatePostModal({ open, onClose, currentUser }) {
           className={`w-full rounded-2xl border ${selectedType.border} ${selectedType.softBg} px-4 py-3 outline-none focus:border-[#ef9ab9]`}
         />
 
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => setImageFile(e.target.files?.[0] || null)}
-          className="w-full rounded-2xl border border-[#f3dbe4] bg-white px-4 py-3 outline-none"
-        />
+        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#f3dbe4] bg-white px-4 py-4 text-sm font-black text-[#d94b93]">
+          <Camera size={18} />
+          {imageFile ? imageFile.name : "Add photo"}
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+            className="hidden"
+          />
+        </label>
 
         <select
           value={groupType}
@@ -392,6 +402,7 @@ function CreatePostModal({ open, onClose, currentUser }) {
           <option>Hobbies</option>
           <option>Career</option>
           <option>Life</option>
+          <option>Other</option>
         </select>
 
         <select
@@ -417,13 +428,31 @@ function CreatePostModal({ open, onClose, currentUser }) {
 }
 
 function CommentsModal({ open, onClose, post, currentUser }) {
+  const navigate = useNavigate();
   const [text, setText] = useState("");
+  const [livePost, setLivePost] = useState(post);
 
   useEffect(() => {
-    if (open) setText("");
-  }, [open]);
+    if (!open || !post?.id) return;
 
-  if (!open || !post) return null;
+    setText("");
+    setLivePost(post);
+
+    const unsubscribe = onSnapshot(doc(db, "posts", post.id), (snap) => {
+      if (snap.exists()) {
+        setLivePost({
+          id: snap.id,
+          ...snap.data(),
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [open, post]);
+
+  if (!open || !livePost) return null;
+
+  const comments = livePost.comments || [];
 
   const addComment = async (e) => {
     e.preventDefault();
@@ -433,7 +462,7 @@ function CommentsModal({ open, onClose, post, currentUser }) {
     const limiUser = await getLimiUserDisplay(currentUser.uid);
 
     const comment = {
-      id: `${Date.now()}`,
+      id: `${currentUser.uid}-${Date.now()}`,
       uid: currentUser.uid,
       user: limiUser.name,
       avatar: limiUser.avatar,
@@ -442,25 +471,94 @@ function CommentsModal({ open, onClose, post, currentUser }) {
       createdAt: new Date().toISOString(),
     };
 
-    await updateDoc(doc(db, "posts", post.id), {
+    setText("");
+
+    await updateDoc(doc(db, "posts", livePost.id), {
       comments: arrayUnion(comment),
       updatedAt: serverTimestamp(),
     });
+  };
 
-    setText("");
+  const deleteComment = async (comment) => {
+    const canDelete =
+      comment.uid === currentUser.uid || livePost.uid === currentUser.uid;
+
+    if (!canDelete) return;
+
+    const confirmed = window.confirm("Delete this comment?");
+    if (!confirmed) return;
+
+    await updateDoc(doc(db, "posts", livePost.id), {
+      comments: arrayRemove(comment),
+      updatedAt: serverTimestamp(),
+    });
+  };
+
+  const openCommenterProfile = (uid) => {
+    if (uid) navigate(`/profile/${uid}`);
   };
 
   return (
     <ModalShell open={open} onClose={onClose} title="Comments">
       <div className="space-y-4">
         <div className="max-h-[45vh] space-y-3 overflow-y-auto pr-1">
-          {post.comments?.length ? (
-            post.comments.map((comment) => (
-              <div key={comment.id} className="rounded-[24px] bg-white p-4 shadow-sm">
-                <p className="text-sm font-black text-[#e85da2]">{comment.user}</p>
-                <p className="mt-1 text-sm leading-6 text-[#80636f]">{comment.text}</p>
-              </div>
-            ))
+          {comments.length ? (
+            comments.map((comment) => {
+              const canDelete =
+                comment.uid === currentUser.uid || livePost.uid === currentUser.uid;
+
+              return (
+                <div
+                  key={comment.id}
+                  className="rounded-[24px] bg-white p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => openCommenterProfile(comment.uid)}
+                      className="flex min-w-0 items-center gap-3 text-left"
+                    >
+                      {comment.photoURL ? (
+                        <img
+                          src={comment.photoURL}
+                          alt=""
+                          className="h-10 w-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#ffe4ef] text-sm font-black text-[#d94b93]">
+                          {comment.avatar || "L"}
+                        </div>
+                      )}
+
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-[#e85da2]">
+                          {comment.user || "Limi Girl"}
+                        </p>
+                        <p className="text-xs font-bold text-[#b38a9a]">
+                          {comment.createdAt
+                            ? new Date(comment.createdAt).toLocaleDateString()
+                            : "Just now"}
+                        </p>
+                      </div>
+                    </button>
+
+                    {canDelete && (
+                      <button
+                        type="button"
+                        onClick={() => deleteComment(comment)}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fff0f7] text-[#ff4d6d]"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+
+                  <p className="mt-3 text-sm leading-6 text-[#80636f]">
+                    {comment.text}
+                  </p>
+                </div>
+              );
+            })
           ) : (
             <div className="rounded-[24px] bg-white p-4 text-sm font-semibold text-[#80636f] shadow-sm">
               No comments yet. Be the first one 💕
@@ -478,7 +576,8 @@ function CommentsModal({ open, onClose, post, currentUser }) {
 
           <button
             type="submit"
-            className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] text-white"
+            disabled={!text.trim()}
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] text-white disabled:opacity-50"
           >
             <Send size={18} />
           </button>
@@ -564,7 +663,11 @@ function PostCard({ post, currentUser, onOpenComments, onOpenMenu }) {
     <div className="overflow-hidden rounded-[36px] bg-[#fff9fc] shadow-[0_12px_35px_rgba(239,148,181,0.12)]">
       <div className={`bg-gradient-to-r ${type.gradient} p-5 text-white`}>
         <div className="flex items-start justify-between">
-          <button type="button" onClick={openProfile} className="flex items-center gap-3 text-left">
+          <button
+            type="button"
+            onClick={openProfile}
+            className="flex items-center gap-3 text-left"
+          >
             {post.photoURL ? (
               <img
                 src={post.photoURL}
@@ -595,7 +698,9 @@ function PostCard({ post, currentUser, onOpenComments, onOpenMenu }) {
 
       <div className="space-y-4 p-5">
         <div className="flex flex-wrap items-center gap-2">
-          <div className={`rounded-full ${type.badgeBg} px-3 py-1 text-xs font-black ${type.badgeText}`}>
+          <div
+            className={`rounded-full ${type.badgeBg} px-3 py-1 text-xs font-black ${type.badgeText}`}
+          >
             {type.emoji} {type.label}
           </div>
 
@@ -618,7 +723,11 @@ function PostCard({ post, currentUser, onOpenComments, onOpenMenu }) {
         )}
 
         {post.image && (
-          <img src={post.image} alt="" className="w-full rounded-[28px] object-cover" />
+          <img
+            src={post.image}
+            alt=""
+            className="w-full rounded-[28px] object-cover"
+          />
         )}
 
         <div className="flex items-center justify-between border-t border-[#f7dce7] pt-4">
@@ -641,10 +750,6 @@ function PostCard({ post, currentUser, onOpenComments, onOpenMenu }) {
             >
               <MessageCircle size={20} />
               {post.comments?.length || 0}
-            </button>
-
-            <button type="button" className="flex items-center gap-2 text-sm font-black text-[#9a7b87]">
-              <Share2 size={20} />
             </button>
           </div>
 

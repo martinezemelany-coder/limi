@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { auth, db, storage } from "../lib/firebase";
+import { updateCurrentUserLocation} from "../lib/location";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -166,35 +167,39 @@ export default function Onboarding() {
     setSelfiePreview(URL.createObjectURL(file));
   };
 
-  const useMyLocation = () => {
-    if (!navigator.geolocation) {
-      alert("Your browser does not support location.");
-      return;
-    }
+  const useMyLocation = async () => {
+  try {
+    setGettingLocation(true);
 
-    setGettingLocation(true);
+    const savedLocation = await updateCurrentUserLocation({
+      distancePreference: radiusMiles,
+    });
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
+    setLocation({
+      city: savedLocation.city || "",
+      state: savedLocation.state || "",
+      country: savedLocation.countryCode || savedLocation.country || "US",
+      lat: savedLocation.latitude,
+      lng: savedLocation.longitude,
+    });
 
-        setLocation((prev) => ({
-          ...prev,
-          lat,
-          lng,
-        }));
+    setCity(
+      savedLocation.displayLocation ||
+        [savedLocation.city, savedLocation.stateCode]
+          .filter(Boolean)
+          .join(", ")
+    );
+  } catch (error) {
+    console.error("Location error:", error);
 
-        setGettingLocation(false);
-        alert("Location saved privately 💕 Now enter your public city.");
-      },
-      (error) => {
-        console.error("Location error:", error);
-        setGettingLocation(false);
-        alert("Location permission was blocked. You can enter your city manually.");
-      }
-    );
-  };
+    alert(
+      error.message ||
+        "We couldn't access your location. Please enter your city manually."
+    );
+  } finally {
+    setGettingLocation(false);
+  }
+};
 
   const canContinue = () => {
     if (step === 1) return name.trim() && age.trim();
@@ -266,14 +271,23 @@ export default function Onboarding() {
         photoURL,
 
         location: {
-          city: city.trim(),
-          state: location.state || "",
-          country: location.country || "US",
-          lat: location.lat,
-          lng: location.lng,
-        },
+          city: location.city || city.trim(),
+          state: location.state || "",
+          country: location.country || "US",
+          displayLocation: city.trim(),
 
-        radiusMiles,
+          latitude: location.lat,
+          longitude: location.lng,
+
+          // Keep these temporarily for pages still using the old names
+          lat: location.lat,
+          lng: location.lng,
+        },
+
+displayLocation: city.trim(),
+
+        radiusMiles,
+        distancePreference: radiusMiles,
 
         interests: selectedInterests,
         activities: selectedActivities,
@@ -581,10 +595,12 @@ export default function Onboarding() {
               {gettingLocation ? "Getting location..." : "Use my location"}
             </button>
 
-            {location.lat && location.lng && (
-              <p style={styles.locationSaved}>Location saved privately 💕</p>
-            )}
-
+           {location.lat !== null && location.lng !== null && (
+             <p style={styles.locationSaved}>
+               Location saved privately 💕
+               {city && ` You’re in ${city}.`}
+             </p>
+          )}
             <input
               style={styles.input}
               placeholder="Public city, example: Orlando, FL"

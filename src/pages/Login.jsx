@@ -1,7 +1,7 @@
 import { getFriendlyFirebaseErrorMessage } from "../lib/firebaseError";
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Mail, Sparkles } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Mail, Sparkles } from "lucide-react";
 import { useFirebaseAuth } from "../lib/FirebaseAuthContext";
 
 export default function Login() {
@@ -208,6 +208,21 @@ export default function Login() {
           </div>
         ) : (
           <div className="mt-8">
+            <button 
+              type = "button"
+              onClick={() => {
+                setEmailOpen(false);
+                setMode("email");
+                setEmail("");
+                setPassword("");
+                setError("");
+                setSuccess("");
+              }} 
+              className="mb-5 flex items-center gap-2 text-sm font-black text-[#d94b93]">
+              <ArrowLeft size={17} />
+              Back
+            </button>
+
             {mode === "email" && (
               <form onSubmit={handleEmailContinue} className="space-y-4">
                 <label className="mb-2 block text-sm font-black text-[#80636f]">
