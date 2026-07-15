@@ -7,14 +7,25 @@ import {
   ArrowRight,
   Check,
   ShieldCheck,
-  Sparkles,
   MapPin,
+  Plus,
+  X,
 } from "lucide-react";
 
 import { auth, db, storage } from "../lib/firebase";
-import { updateCurrentUserLocation} from "../lib/location";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { updateCurrentUserLocation } from "../lib/location";
+
+import {
+  doc,
+  setDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+} from "firebase/storage";
 
 const interestsOptions = [
   "Anime",
@@ -78,7 +89,11 @@ const vibeOptions = [
   "Deep Conversations",
 ];
 
-const socialEnergyOptions = ["Introvert", "Ambivert", "Extrovert"];
+const socialEnergyOptions = [
+  "Introvert",
+  "Ambivert",
+  "Extrovert",
+];
 
 export default function Onboarding() {
   const navigate = useNavigate();
@@ -86,7 +101,11 @@ export default function Onboarding() {
 
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
-  const [showVerificationForm, setShowVerificationForm] = useState(false);
+
+  const [
+    showVerificationForm,
+    setShowVerificationForm,
+  ] = useState(false);
 
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
@@ -102,196 +121,529 @@ export default function Onboarding() {
   });
 
   const [radiusMiles, setRadiusMiles] = useState(25);
-  const [gettingLocation, setGettingLocation] = useState(false);
 
-  const [photoFile, setPhotoFile] = useState(null);
-  const [photoPreview, setPhotoPreview] = useState("");
+  const [
+    gettingLocation,
+    setGettingLocation,
+  ] = useState(false);
+
+  /*
+    Photo position 0 = required main photo
+    Photo positions 1 and 2 = optional
+  */
+  const [photoFiles, setPhotoFiles] = useState([
+    null,
+    null,
+    null,
+  ]);
+
+  const [photoPreviews, setPhotoPreviews] = useState([
+    "",
+    "",
+    "",
+  ]);
 
   const [idFile, setIdFile] = useState(null);
   const [idPreview, setIdPreview] = useState("");
 
   const [selfieFile, setSelfieFile] = useState(null);
-  const [selfiePreview, setSelfiePreview] = useState("");
+  const [selfiePreview, setSelfiePreview] =
+    useState("");
 
-  const [selectedInterests, setSelectedInterests] = useState([]);
-  const [selectedActivities, setSelectedActivities] = useState([]);
-  const [selectedVibes, setSelectedVibes] = useState([]);
-  const [socialEnergy, setSocialEnergy] = useState("");
+  const [
+    selectedInterests,
+    setSelectedInterests,
+  ] = useState([]);
+
+  const [
+    selectedActivities,
+    setSelectedActivities,
+  ] = useState([]);
+
+  const [selectedVibes, setSelectedVibes] =
+    useState([]);
+
+  const [socialEnergy, setSocialEnergy] =
+    useState("");
 
   const totalSteps = 6;
-  const progress = useMemo(() => `${(step / totalSteps) * 100}%`, [step]);
 
-  const toggleUnlimited = (item, list, setList) => {
+  const progress = useMemo(
+    () => `${(step / totalSteps) * 100}%`,
+    [step]
+  );
+
+  const numberOfPhotos = photoPreviews.filter(
+    Boolean
+  ).length;
+
+  const toggleUnlimited = (
+    item,
+    list,
+    setList
+  ) => {
     if (list.includes(item)) {
-      setList(list.filter((x) => x !== item));
+      setList(
+        list.filter(
+          (selectedItem) =>
+            selectedItem !== item
+        )
+      );
     } else {
       setList([...list, item]);
     }
   };
 
-  const toggleLimited = (item, list, setList, limit) => {
+  const toggleLimited = (
+    item,
+    list,
+    setList,
+    limit
+  ) => {
     if (list.includes(item)) {
-      setList(list.filter((x) => x !== item));
+      setList(
+        list.filter(
+          (selectedItem) =>
+            selectedItem !== item
+        )
+      );
+
       return;
     }
 
     if (list.length >= limit) {
-      alert(`You can only choose up to ${limit}.`);
+      window.alert(
+        `You can only choose up to ${limit}.`
+      );
+
       return;
     }
 
     setList([...list, item]);
   };
 
-  const handlePhotoChange = (e) => {
-    const file = e.target.files?.[0];
+  /* -------------------------------------------------------
+     PROFILE PHOTOS
+  ------------------------------------------------------- */
+
+  const handleProfilePhotoChange = (
+    event,
+    photoIndex
+  ) => {
+    const file = event.target.files?.[0];
+
     if (!file) return;
 
-    setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
+    if (!file.type.startsWith("image/")) {
+      window.alert(
+        "Please choose an image file."
+      );
+
+      return;
+    }
+
+    const maximumFileSize = 10 * 1024 * 1024;
+
+    if (file.size > maximumFileSize) {
+      window.alert(
+        "Please choose an image smaller than 10 MB."
+      );
+
+      return;
+    }
+
+    const previewURL =
+      URL.createObjectURL(file);
+
+    setPhotoFiles((currentFiles) => {
+      const updatedFiles = [...currentFiles];
+      updatedFiles[photoIndex] = file;
+      return updatedFiles;
+    });
+
+    setPhotoPreviews((currentPreviews) => {
+      const updatedPreviews = [
+        ...currentPreviews,
+      ];
+
+      const previousPreview =
+        updatedPreviews[photoIndex];
+
+      if (
+        previousPreview &&
+        previousPreview.startsWith("blob:")
+      ) {
+        URL.revokeObjectURL(previousPreview);
+      }
+
+      updatedPreviews[photoIndex] =
+        previewURL;
+
+      return updatedPreviews;
+    });
+
+    /*
+      Allows the same file to be selected
+      again after it has been removed.
+    */
+    event.target.value = "";
   };
 
-  const handleIdChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const removeProfilePhoto = (
+    photoIndex
+  ) => {
+    const previewToRemove =
+      photoPreviews[photoIndex];
 
-    setIdFile(file);
-    setIdPreview(URL.createObjectURL(file));
-  };
-
-  const handleSelfieChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setSelfieFile(file);
-    setSelfiePreview(URL.createObjectURL(file));
-  };
-
-  const useMyLocation = async () => {
-  try {
-    setGettingLocation(true);
-
-    const savedLocation = await updateCurrentUserLocation({
-      distancePreference: radiusMiles,
-    });
-
-    setLocation({
-      city: savedLocation.city || "",
-      state: savedLocation.state || "",
-      country: savedLocation.countryCode || savedLocation.country || "US",
-      lat: savedLocation.latitude,
-      lng: savedLocation.longitude,
-    });
-
-    setCity(
-      savedLocation.displayLocation ||
-        [savedLocation.city, savedLocation.stateCode]
-          .filter(Boolean)
-          .join(", ")
-    );
-  } catch (error) {
-    console.error("Location error:", error);
-
-    alert(
-      error.message ||
-        "We couldn't access your location. Please enter your city manually."
-    );
-  } finally {
-    setGettingLocation(false);
-  }
-};
-
-  const canContinue = () => {
-    if (step === 1) return name.trim() && age.trim();
-
-    if (step === 2) return selectedInterests.length >= 1;
-
-    if (step === 3) {
-      return (
-        selectedActivities.length >= 1 &&
-        selectedVibes.length >= 1 &&
-        socialEnergy
+    if (
+      previewToRemove &&
+      previewToRemove.startsWith("blob:")
+    ) {
+      URL.revokeObjectURL(
+        previewToRemove
       );
     }
 
-    if (step === 4) return photoFile || photoPreview;
+    setPhotoFiles((currentFiles) => {
+      const updatedFiles = [...currentFiles];
+      updatedFiles[photoIndex] = null;
+      return updatedFiles;
+    });
 
-    if (step === 5) return city.trim();
+    setPhotoPreviews((currentPreviews) => {
+      const updatedPreviews = [
+        ...currentPreviews,
+      ];
+
+      updatedPreviews[photoIndex] = "";
+      return updatedPreviews;
+    });
+  };
+
+  /* -------------------------------------------------------
+     VERIFICATION PHOTOS
+  ------------------------------------------------------- */
+
+  const handleIdChange = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    setIdFile(file);
+
+    if (
+      idPreview &&
+      idPreview.startsWith("blob:")
+    ) {
+      URL.revokeObjectURL(idPreview);
+    }
+
+    setIdPreview(
+      URL.createObjectURL(file)
+    );
+  };
+
+  const handleSelfieChange = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    setSelfieFile(file);
+
+    if (
+      selfiePreview &&
+      selfiePreview.startsWith("blob:")
+    ) {
+      URL.revokeObjectURL(
+        selfiePreview
+      );
+    }
+
+    setSelfiePreview(
+      URL.createObjectURL(file)
+    );
+  };
+
+  /* -------------------------------------------------------
+     LOCATION
+  ------------------------------------------------------- */
+
+  const useMyLocation = async () => {
+    try {
+      setGettingLocation(true);
+
+      const savedLocation =
+        await updateCurrentUserLocation({
+          distancePreference:
+            radiusMiles,
+        });
+
+      setLocation({
+        city: savedLocation.city || "",
+        state: savedLocation.state || "",
+        country:
+          savedLocation.countryCode ||
+          savedLocation.country ||
+          "US",
+        lat: savedLocation.latitude,
+        lng: savedLocation.longitude,
+      });
+
+      setCity(
+        savedLocation.displayLocation ||
+          [
+            savedLocation.city,
+            savedLocation.stateCode,
+          ]
+            .filter(Boolean)
+            .join(", ")
+      );
+    } catch (error) {
+      console.error(
+        "Location error:",
+        error
+      );
+
+      window.alert(
+        error.message ||
+          "We couldn't access your location. Please enter your city manually."
+      );
+    } finally {
+      setGettingLocation(false);
+    }
+  };
+
+  /* -------------------------------------------------------
+     ONBOARDING NAVIGATION
+  ------------------------------------------------------- */
+
+  const canContinue = () => {
+    if (step === 1) {
+      return Boolean(
+        name.trim() && age.trim()
+      );
+    }
+
+    if (step === 2) {
+      return (
+        selectedInterests.length >= 1
+      );
+    }
+
+    if (step === 3) {
+      return Boolean(
+        selectedActivities.length >= 1 &&
+          selectedVibes.length >= 1 &&
+          socialEnergy
+      );
+    }
+
+    /*
+      Only the first photo is required.
+      Photos 2 and 3 are optional.
+    */
+    if (step === 4) {
+      return Boolean(
+        photoFiles[0] ||
+          photoPreviews[0]
+      );
+    }
+
+    if (step === 5) {
+      return Boolean(city.trim());
+    }
 
     return true;
   };
 
   const nextStep = () => {
     if (!canContinue()) {
-      alert("Please complete this step first.");
+      if (step === 4) {
+        window.alert(
+          "Please add a main profile photo first."
+        );
+      } else {
+        window.alert(
+          "Please complete this step first."
+        );
+      }
+
       return;
     }
 
-    if (step < totalSteps) setStep(step + 1);
+    if (step < totalSteps) {
+      setStep(
+        (currentStep) =>
+          currentStep + 1
+      );
+    }
   };
 
   const backStep = () => {
-    if (step > 1) setStep(step - 1);
+    if (step > 1) {
+      setStep(
+        (currentStep) =>
+          currentStep - 1
+      );
+    }
   };
 
-  const uploadMainProfilePhoto = async () => {
-    if (!photoFile) return photoPreview || "";
+  /* -------------------------------------------------------
+     PROFILE PHOTO UPLOADS
+  ------------------------------------------------------- */
 
-    const photoRef = ref(
-      storage,
-      `profileImages/${user.uid}/${Date.now()}-${photoFile.name}`
+  const uploadProfilePhotos = async () => {
+    const currentUser =
+      auth.currentUser;
+
+    if (!currentUser) {
+      throw new Error(
+        "Please sign in again."
+      );
+    }
+
+    const uploads = photoFiles.map(
+      async (file, photoIndex) => {
+        if (!file) {
+          return (
+            photoPreviews[photoIndex] ||
+            ""
+          );
+        }
+
+        const safeFileName =
+          file.name.replace(
+            /[^a-zA-Z0-9._-]/g,
+            "-"
+          );
+
+        const photoReference = ref(
+          storage,
+          `profileImages/${
+            currentUser.uid
+          }/photo-${photoIndex + 1}-${Date.now()}-${safeFileName}`
+        );
+
+        await uploadBytes(
+          photoReference,
+          file
+        );
+
+        return await getDownloadURL(
+          photoReference
+        );
+      }
     );
 
-    await uploadBytes(photoRef, photoFile);
-    return await getDownloadURL(photoRef);
+    const uploadedPhotos =
+      await Promise.all(uploads);
+
+    return uploadedPhotos.filter(
+      Boolean
+    );
   };
+
+  /* -------------------------------------------------------
+     SAVE PROFILE
+  ------------------------------------------------------- */
 
   const saveBaseProfile = async ({
     verificationStatus = "not_started",
     idImage = "",
     selfieImage = "",
   }) => {
-    if (!user) {
-      throw new Error("Please sign in again.");
+    const currentUser =
+      auth.currentUser;
+
+    if (!currentUser) {
+      throw new Error(
+        "Please sign in again."
+      );
     }
 
-    const photoURL = await uploadMainProfilePhoto();
+    const profilePhotos =
+      await uploadProfilePhotos();
+
+    const mainPhotoURL =
+      profilePhotos[0] || "";
+
+    if (!mainPhotoURL) {
+      throw new Error(
+        "Please add a main profile photo."
+      );
+    }
 
     await setDoc(
-      doc(db, "users", user.uid),
+      doc(
+        db,
+        "users",
+        currentUser.uid
+      ),
       {
-        uid: user.uid,
-        email: user.email || "",
+        uid: currentUser.uid,
+        email:
+          currentUser.email || "",
 
         name: name.trim(),
         age: Number(age),
         city: city.trim(),
         bio: bio.trim(),
-        profileImage: photoURL,
-        photoURL,
+
+        /*
+          The first image remains the main
+          profile photo for older pages.
+        */
+        profileImage: mainPhotoURL,
+        profilePhotoURL: mainPhotoURL,
+        photoURL: mainPhotoURL,
+
+        /*
+          Match and Profile can use this
+          array for all three photos.
+        */
+        profilePhotos,
 
         location: {
-          city: location.city || city.trim(),
-          state: location.state || "",
-          country: location.country || "US",
-          displayLocation: city.trim(),
+          city:
+            location.city ||
+            city.trim(),
 
-          latitude: location.lat,
-          longitude: location.lng,
+          state:
+            location.state || "",
 
-          // Keep these temporarily for pages still using the old names
-          lat: location.lat,
-          lng: location.lng,
-        },
+          country:
+            location.country || "US",
 
-displayLocation: city.trim(),
+          displayLocation:
+            city.trim(),
 
-        radiusMiles,
-        distancePreference: radiusMiles,
+          latitude: location.lat,
+          longitude: location.lng,
 
-        interests: selectedInterests,
-        activities: selectedActivities,
-        friendActivities: selectedActivities,
+          /*
+            Keep these temporarily for pages
+            still using the old names.
+          */
+          lat: location.lat,
+          lng: location.lng,
+        },
+
+        displayLocation:
+          city.trim(),
+
+        radiusMiles,
+        distancePreference:
+          radiusMiles,
+
+        interests:
+          selectedInterests,
+
+        activities:
+          selectedActivities,
+
+        friendActivities:
+          selectedActivities,
+
         vibes: selectedVibes,
         socialEnergy,
 
@@ -303,18 +655,25 @@ displayLocation: city.trim(),
         onboardingComplete: true,
         completedOnboarding: true,
 
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        createdAt:
+          serverTimestamp(),
+
+        updatedAt:
+          serverTimestamp(),
       },
       { merge: true }
     );
   };
 
   const skipVerification = async () => {
-    const currentUser = auth.currentUser;
+    const currentUser =
+      auth.currentUser;
 
     if (!currentUser) {
-      alert("Please sign in again.");
+      window.alert(
+        "Please sign in again."
+      );
+
       return;
     }
 
@@ -322,57 +681,120 @@ displayLocation: city.trim(),
       setSaving(true);
 
       await saveBaseProfile({
-        verificationStatus: "skipped",
+        verificationStatus:
+          "skipped",
       });
 
-      navigate("/profile", { replace: true });
+      navigate("/profile", {
+        replace: true,
+      });
     } catch (error) {
-      console.error("Skip verification error:", error);
-      alert(error.message || "Something went wrong while saving your profile.");
+      console.error(
+        "Skip verification error:",
+        error
+      );
+
+      window.alert(
+        getFriendlyFirebaseErrorMessage?.(
+          error
+        ) ||
+          error.message ||
+          "Something went wrong while saving your profile."
+      );
+
       setSaving(false);
     }
   };
 
   const submitVerification = async () => {
-    if (!user) {
-      alert("Please sign in again.");
+    const currentUser =
+      auth.currentUser;
+
+    if (!currentUser) {
+      window.alert(
+        "Please sign in again."
+      );
+
       return;
     }
 
     if (!idFile || !selfieFile) {
-      alert("Please upload your ID and take a selfie first.");
+      window.alert(
+        "Please upload your ID and take a selfie first."
+      );
+
       return;
     }
 
     try {
       setSaving(true);
 
-      const idRef = ref(
+      const safeIdFileName =
+        idFile.name.replace(
+          /[^a-zA-Z0-9._-]/g,
+          "-"
+        );
+
+      const idReference = ref(
         storage,
-        `verification/${user.uid}/id-${Date.now()}-${idFile.name}`
+        `verification/${currentUser.uid}/id-${Date.now()}-${safeIdFileName}`
       );
 
-      await uploadBytes(idRef, idFile);
-      const idURL = await getDownloadURL(idRef);
-
-      const selfieRef = ref(
-        storage,
-        `verification/${user.uid}/selfie-${Date.now()}-${selfieFile.name}`
+      await uploadBytes(
+        idReference,
+        idFile
       );
 
-      await uploadBytes(selfieRef, selfieFile);
-      const selfieURL = await getDownloadURL(selfieRef);
+      const idURL =
+        await getDownloadURL(
+          idReference
+        );
+
+      const safeSelfieFileName =
+        selfieFile.name.replace(
+          /[^a-zA-Z0-9._-]/g,
+          "-"
+        );
+
+      const selfieReference = ref(
+        storage,
+        `verification/${currentUser.uid}/selfie-${Date.now()}-${safeSelfieFileName}`
+      );
+
+      await uploadBytes(
+        selfieReference,
+        selfieFile
+      );
+
+      const selfieURL =
+        await getDownloadURL(
+          selfieReference
+        );
 
       await saveBaseProfile({
-        verificationStatus: "pending",
+        verificationStatus:
+          "pending",
         idImage: idURL,
         selfieImage: selfieURL,
       });
 
-      navigate("/profile", { replace: true });
+      navigate("/profile", {
+        replace: true,
+      });
     } catch (error) {
-      console.error("Verification error:", error);
-      alert("Something went wrong while submitting verification.");
+      console.error(
+        "Verification error:",
+        error
+      );
+
+      window.alert(
+        getFriendlyFirebaseErrorMessage?.(
+          error
+        ) ||
+          error.message ||
+          "Something went wrong while submitting verification."
+      );
+
       setSaving(false);
     }
   };
@@ -381,241 +803,609 @@ displayLocation: city.trim(),
     <div style={styles.page}>
       <div style={styles.card}>
         <div style={styles.logoBox}>
-          <div style={styles.logo}>L</div>
+          <div style={styles.logo}>
+            L
+          </div>
         </div>
 
-        <h1 style={styles.title}>Welcome</h1>
-        <p style={styles.subtitle}>let’s build your Limi identity 💕</p>
+        <h1 style={styles.title}>
+          Welcome
+        </h1>
+
+        <p style={styles.subtitle}>
+          let’s build your Limi identity 💕
+        </p>
 
         <div style={styles.progressOuter}>
-          <div style={{ ...styles.progressInner, width: progress }} />
+          <div
+            style={{
+              ...styles.progressInner,
+              width: progress,
+            }}
+          />
         </div>
 
-        <p style={styles.stepText}>Step {step} of {totalSteps}</p>
+        <p style={styles.stepText}>
+          Step {step} of {totalSteps}
+        </p>
+
+        {/* STEP 1 */}
 
         {step === 1 && (
           <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>Tell us about yourself</h2>
-            <p style={styles.helper}>This is what people will see on your profile.</p>
+            <h2 style={styles.sectionTitle}>
+              Tell us about yourself
+            </h2>
+
+            <p style={styles.helper}>
+              This is what people will see
+              on your profile.
+            </p>
 
             <input
               style={styles.input}
               placeholder="Your name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(event) =>
+                setName(
+                  event.target.value
+                )
+              }
             />
 
             <input
               style={styles.input}
               placeholder="Age"
               type="number"
+              min="18"
+              max="120"
               value={age}
-              onChange={(e) => setAge(e.target.value)}
+              onChange={(event) =>
+                setAge(
+                  event.target.value
+                )
+              }
             />
 
             <textarea
               style={styles.textarea}
               placeholder="Short bio — tell people what you're like 💗"
               value={bio}
-              onChange={(e) => setBio(e.target.value)}
+              onChange={(event) =>
+                setBio(
+                  event.target.value
+                )
+              }
             />
           </div>
         )}
 
+        {/* STEP 2 */}
+
         {step === 2 && (
           <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>What are you into?</h2>
-            <p style={styles.helper}>Choose as many as you want.</p>
+            <h2 style={styles.sectionTitle}>
+              What are you into?
+            </h2>
+
+            <p style={styles.helper}>
+              Choose as many as you want.
+            </p>
 
             <div style={styles.grid}>
-              {interestsOptions.map((interest) => {
-                const active = selectedInterests.includes(interest);
+              {interestsOptions.map(
+                (interest) => {
+                  const active =
+                    selectedInterests.includes(
+                      interest
+                    );
 
-                return (
-                  <button
-                    key={interest}
-                    type="button"
-                    style={{
-                      ...styles.pill,
-                      ...(active ? styles.pillActive : {}),
-                    }}
-                    onClick={() =>
-                      toggleUnlimited(
-                        interest,
-                        selectedInterests,
-                        setSelectedInterests
-                      )
-                    }
-                  >
-                    {active && <Check size={14} />}
-                    {interest}
-                  </button>
-                );
-              })}
+                  return (
+                    <button
+                      key={interest}
+                      type="button"
+                      style={{
+                        ...styles.pill,
+                        ...(active
+                          ? styles.pillActive
+                          : {}),
+                      }}
+                      onClick={() =>
+                        toggleUnlimited(
+                          interest,
+                          selectedInterests,
+                          setSelectedInterests
+                        )
+                      }
+                    >
+                      {active && (
+                        <Check size={14} />
+                      )}
+
+                      {interest}
+                    </button>
+                  );
+                }
+              )}
             </div>
           </div>
         )}
 
+        {/* STEP 3 */}
+
         {step === 3 && (
           <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>What would you do with friends?</h2>
-            <p style={styles.helper}>Choose as many as you want.</p>
+            <h2 style={styles.sectionTitle}>
+              What would you do with friends?
+            </h2>
+
+            <p style={styles.helper}>
+              Choose as many as you want.
+            </p>
 
             <div style={styles.grid}>
-              {activityOptions.map((activity) => {
-                const active = selectedActivities.includes(activity);
+              {activityOptions.map(
+                (activity) => {
+                  const active =
+                    selectedActivities.includes(
+                      activity
+                    );
 
-                return (
-                  <button
-                    key={activity}
-                    type="button"
-                    style={{
-                      ...styles.pill,
-                      ...(active ? styles.pillActive : {}),
-                    }}
-                    onClick={() =>
-                      toggleUnlimited(
-                        activity,
-                        selectedActivities,
-                        setSelectedActivities
-                      )
-                    }
-                  >
-                    {active && <Check size={14} />}
-                    {activity}
-                  </button>
-                );
-              })}
+                  return (
+                    <button
+                      key={activity}
+                      type="button"
+                      style={{
+                        ...styles.pill,
+                        ...(active
+                          ? styles.pillActive
+                          : {}),
+                      }}
+                      onClick={() =>
+                        toggleUnlimited(
+                          activity,
+                          selectedActivities,
+                          setSelectedActivities
+                        )
+                      }
+                    >
+                      {active && (
+                        <Check size={14} />
+                      )}
+
+                      {activity}
+                    </button>
+                  );
+                }
+              )}
             </div>
 
-            <h2 style={{ ...styles.sectionTitle, marginTop: 24 }}>
+            <h2
+              style={{
+                ...styles.sectionTitle,
+                marginTop: 24,
+              }}
+            >
               Social Energy
             </h2>
 
             <div style={styles.grid}>
-              {socialEnergyOptions.map((energy) => {
-                const active = socialEnergy === energy;
+              {socialEnergyOptions.map(
+                (energy) => {
+                  const active =
+                    socialEnergy ===
+                    energy;
 
-                return (
-                  <button
-                    key={energy}
-                    type="button"
-                    style={{
-                      ...styles.pill,
-                      ...(active ? styles.pillActive : {}),
-                    }}
-                    onClick={() => setSocialEnergy(energy)}
-                  >
-                    {active && <Check size={14} />}
-                    {energy}
-                  </button>
-                );
-              })}
+                  return (
+                    <button
+                      key={energy}
+                      type="button"
+                      style={{
+                        ...styles.pill,
+                        ...(active
+                          ? styles.pillActive
+                          : {}),
+                      }}
+                      onClick={() =>
+                        setSocialEnergy(
+                          energy
+                        )
+                      }
+                    >
+                      {active && (
+                        <Check size={14} />
+                      )}
+
+                      {energy}
+                    </button>
+                  );
+                }
+              )}
             </div>
 
-            <h2 style={{ ...styles.sectionTitle, marginTop: 24 }}>
+            <h2
+              style={{
+                ...styles.sectionTitle,
+                marginTop: 24,
+              }}
+            >
               Choose your vibe
             </h2>
-            <p style={styles.helper}>Choose up to 3.</p>
+
+            <p style={styles.helper}>
+              Choose up to 3.
+            </p>
 
             <div style={styles.grid}>
-              {vibeOptions.map((vibe) => {
-                const active = selectedVibes.includes(vibe);
+              {vibeOptions.map(
+                (vibe) => {
+                  const active =
+                    selectedVibes.includes(
+                      vibe
+                    );
 
-                return (
-                  <button
-                    key={vibe}
-                    type="button"
-                    style={{
-                      ...styles.pill,
-                      ...(active ? styles.pillActive : {}),
-                    }}
-                    onClick={() =>
-                      toggleLimited(vibe, selectedVibes, setSelectedVibes, 3)
-                    }
-                  >
-                    {active && <Check size={14} />}
-                    {vibe}
-                  </button>
-                );
-              })}
+                  return (
+                    <button
+                      key={vibe}
+                      type="button"
+                      style={{
+                        ...styles.pill,
+                        ...(active
+                          ? styles.pillActive
+                          : {}),
+                      }}
+                      onClick={() =>
+                        toggleLimited(
+                          vibe,
+                          selectedVibes,
+                          setSelectedVibes,
+                          3
+                        )
+                      }
+                    >
+                      {active && (
+                        <Check size={14} />
+                      )}
+
+                      {vibe}
+                    </button>
+                  );
+                }
+              )}
             </div>
           </div>
         )}
+
+        {/* STEP 4: PROFILE PHOTOS */}
 
         {step === 4 && (
           <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>Upload your best photo</h2>
-            <p style={styles.helper}>A clear profile photo helps people trust you.</p>
+            <h2 style={styles.sectionTitle}>
+              Add your photos
+            </h2>
 
-            <label style={styles.photoBox}>
-              {photoPreview ? (
-                <img
-                  src={photoPreview}
-                  alt="Preview"
-                  style={styles.photoPreview}
+            <p style={styles.helper}>
+              Add one main profile photo and
+              up to two optional photos.
+              People can swipe through them
+              on your Match profile.
+            </p>
+
+            <div style={styles.photoCountRow}>
+              <span style={styles.photoCount}>
+                {numberOfPhotos} of 3 photos
+                added
+              </span>
+
+              <span style={styles.optionalText}>
+                Only the first is required
+              </span>
+            </div>
+
+            {/* MAIN PHOTO */}
+
+            <div
+              style={styles.mainPhotoContainer}
+            >
+              <div style={styles.mainBadge}>
+                Main photo
+              </div>
+
+              <label style={styles.photoBox}>
+                {photoPreviews[0] ? (
+                  <img
+                    src={photoPreviews[0]}
+                    alt="Main profile preview"
+                    style={styles.photoPreview}
+                  />
+                ) : (
+                  <div
+                    style={
+                      styles.photoPlaceholder
+                    }
+                  >
+                    <div
+                      style={
+                        styles.cameraCircle
+                      }
+                    >
+                      <Camera
+                        size={34}
+                        color="#d94b93"
+                      />
+                    </div>
+
+                    <p
+                      style={
+                        styles.photoPlaceholderTitle
+                      }
+                    >
+                      Add your main photo
+                    </p>
+
+                    <span
+                      style={
+                        styles.photoPlaceholderText
+                      }
+                    >
+                      This will be the first
+                      photo people see.
+                    </span>
+                  </div>
+                )}
+
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) =>
+                    handleProfilePhotoChange(
+                      event,
+                      0
+                    )
+                  }
+                  style={{
+                    display: "none",
+                  }}
                 />
-              ) : (
-                <div style={styles.photoPlaceholder}>
-                  <Camera size={42} color="#d94b93" />
-                  <p>Upload your photo</p>
-                </div>
-              )}
+              </label>
 
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handlePhotoChange}
-                style={{ display: "none" }}
+              {photoPreviews[0] && (
+                <>
+                  <label
+                    style={
+                      styles.replacePhotoButton
+                    }
+                  >
+                    <Camera size={16} />
+                    Replace
+
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) =>
+                        handleProfilePhotoChange(
+                          event,
+                          0
+                        )
+                      }
+                      style={{
+                        display: "none",
+                      }}
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    aria-label="Remove main photo"
+                    style={
+                      styles.removePhotoButton
+                    }
+                    onClick={() =>
+                      removeProfilePhoto(0)
+                    }
+                  >
+                    <X size={17} />
+                  </button>
+                </>
+              )}
+            </div>
+
+            <p style={styles.extraPhotosTitle}>
+              Extra photos
+            </p>
+
+            <p style={styles.extraPhotosHelper}>
+              Optional — show more of your
+              personality!
+            </p>
+
+            <div
+              style={
+                styles.optionalPhotosGrid
+              }
+            >
+              {[1, 2].map(
+                (photoIndex) => (
+                  <div
+                    key={photoIndex}
+                    style={
+                      styles.optionalPhotoContainer
+                    }
+                  >
+                    <label
+                      style={
+                        styles.optionalPhotoBox
+                      }
+                    >
+                      {photoPreviews[
+                        photoIndex
+                      ] ? (
+                        <img
+                          src={
+                            photoPreviews[
+                              photoIndex
+                            ]
+                          }
+                          alt={`Optional profile preview ${
+                            photoIndex + 1
+                          }`}
+                          style={
+                            styles.photoPreview
+                          }
+                        />
+                      ) : (
+                        <div
+                          style={
+                            styles.optionalPhotoPlaceholder
+                          }
+                        >
+                          <Plus
+                            size={27}
+                            color="#d94b93"
+                          />
+
+                          <span>
+                            Optional
+                          </span>
+                        </div>
+                      )}
+
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(
+                          event
+                        ) =>
+                          handleProfilePhotoChange(
+                            event,
+                            photoIndex
+                          )
+                        }
+                        style={{
+                          display:
+                            "none",
+                        }}
+                      />
+                    </label>
+
+                    {photoPreviews[
+                      photoIndex
+                    ] && (
+                      <button
+                        type="button"
+                        aria-label={`Remove optional photo ${photoIndex}`}
+                        style={
+                          styles.smallRemoveButton
+                        }
+                        onClick={() =>
+                          removeProfilePhoto(
+                            photoIndex
+                          )
+                        }
+                      >
+                        <X size={15} />
+                      </button>
+                    )}
+                  </div>
+                )
+              )}
+            </div>
+
+            <div style={styles.photoTip}>
+              <ShieldCheck
+                size={18}
+                color="#d94b93"
               />
-            </label>
+
+              <p style={styles.photoTipText}>
+                Use clear, recent photos that
+                show you. Your main photo
+                should clearly show your face.
+              </p>
+            </div>
           </div>
         )}
 
+        {/* STEP 5 */}
+
         {step === 5 && (
           <div style={styles.section}>
-            <div style={styles.locationIcon}>
-              <MapPin size={34} color="#d94b93" />
+            <div
+              style={styles.locationIcon}
+            >
+              <MapPin
+                size={34}
+                color="#d94b93"
+              />
             </div>
 
-            <h2 style={styles.sectionTitle}>Find people near you</h2>
+            <h2 style={styles.sectionTitle}>
+              Find people near you
+            </h2>
 
             <p style={styles.helper}>
-              Limi uses your area to show nearby feed posts, matches, reels, and
-              hangouts. Your exact location is never shown publicly.
+              Limi uses your area to show
+              nearby feed posts, matches,
+              reels, and hangouts. Your exact
+              location is never shown
+              publicly.
             </p>
 
             <button
               type="button"
-              style={styles.locationButton}
+              style={{
+                ...styles.locationButton,
+                ...(gettingLocation
+                  ? styles.disabledButton
+                  : {}),
+              }}
               onClick={useMyLocation}
               disabled={gettingLocation}
             >
               <MapPin size={18} />
-              {gettingLocation ? "Getting location..." : "Use my location"}
+
+              {gettingLocation
+                ? "Getting location..."
+                : "Use my location"}
             </button>
 
-           {location.lat !== null && location.lng !== null && (
-             <p style={styles.locationSaved}>
-               Location saved privately 💕
-               {city && ` You’re in ${city}.`}
-             </p>
-          )}
+            {location.lat !== null &&
+              location.lng !== null && (
+                <p
+                  style={
+                    styles.locationSaved
+                  }
+                >
+                  Location saved privately 💕
+                  {city &&
+                    ` You’re in ${city}.`}
+                </p>
+              )}
+
             <input
               style={styles.input}
               placeholder="Public city, example: Orlando, FL"
               value={city}
-              onChange={(e) => {
-                setCity(e.target.value);
-                setLocation((prev) => ({
-                  ...prev,
-                  city: e.target.value,
-                }));
+              onChange={(event) => {
+                setCity(
+                  event.target.value
+                );
+
+                setLocation(
+                  (currentLocation) => ({
+                    ...currentLocation,
+                    city:
+                      event.target.value,
+                  })
+                );
               }}
             />
 
-            <label style={styles.radiusLabel}>
-              Show me people within {radiusMiles} miles
+            <label
+              style={styles.radiusLabel}
+            >
+              Show me people within{" "}
+              {radiusMiles} miles
             </label>
 
             <input
@@ -624,11 +1414,19 @@ displayLocation: city.trim(),
               max="100"
               step="5"
               value={radiusMiles}
-              onChange={(e) => setRadiusMiles(Number(e.target.value))}
+              onChange={(event) =>
+                setRadiusMiles(
+                  Number(
+                    event.target.value
+                  )
+                )
+              }
               style={styles.range}
             />
 
-            <div style={styles.radiusOptions}>
+            <div
+              style={styles.radiusOptions}
+            >
               <span>5 mi</span>
               <span>50 mi</span>
               <span>100 mi</span>
@@ -636,76 +1434,146 @@ displayLocation: city.trim(),
           </div>
         )}
 
+        {/* STEP 6 */}
+
         {step === 6 && (
           <div style={styles.section}>
             <div style={styles.verifyBox}>
-              <ShieldCheck size={52} color="#d94b93" />
+              <ShieldCheck
+                size={52}
+                color="#d94b93"
+              />
 
-              <h2 style={styles.sectionTitle}>Get verified</h2>
+              <h2
+                style={
+                  styles.sectionTitle
+                }
+              >
+                Get verified
+              </h2>
 
-              <p style={styles.verifyText}>
-                Verification is optional. It helps build trust and adds a
-                Verified badge to your profile. You can verify now or later from
-                your profile settings.
+              <p
+                style={styles.verifyText}
+              >
+                Verification is optional. It
+                helps build trust and adds a
+                Verified badge to your
+                profile. You can verify now
+                or later from your profile
+                settings.
               </p>
 
               {!showVerificationForm ? (
-                <div style={styles.verifyActions}>
+                <div
+                  style={
+                    styles.verifyActions
+                  }
+                >
                   <button
                     type="button"
-                    style={styles.nextButtonFull}
-                    onClick={() => setShowVerificationForm(true)}
+                    style={{
+                      ...styles.nextButtonFull,
+                      ...(saving
+                        ? styles.disabledButton
+                        : {}),
+                    }}
+                    onClick={() =>
+                      setShowVerificationForm(
+                        true
+                      )
+                    }
                     disabled={saving}
                   >
                     Verify Now
-                    <ShieldCheck size={18} />
+                    <ShieldCheck
+                      size={18}
+                    />
                   </button>
 
                   <button
                     type="button"
-                    style={styles.skipButton}
-                    onClick={skipVerification}
+                    style={{
+                      ...styles.skipButton,
+                      ...(saving
+                        ? styles.disabledButton
+                        : {}),
+                    }}
+                    onClick={
+                      skipVerification
+                    }
                     disabled={saving}
                   >
-                    {saving ? "Saving..." : "Skip For Now"}
-                    {!saving && <ArrowRight size={18} />}
+                    {saving
+                      ? "Saving..."
+                      : "Skip For Now"}
+
+                    {!saving && (
+                      <ArrowRight
+                        size={18}
+                      />
+                    )}
                   </button>
                 </div>
               ) : (
                 <>
-                  <label style={styles.uploadBox}>
+                  <label
+                    style={styles.uploadBox}
+                  >
                     {idPreview ? (
                       <img
                         src={idPreview}
                         alt="ID Preview"
-                        style={styles.photoPreview}
+                        style={
+                          styles.photoPreview
+                        }
                       />
                     ) : (
                       <div>
-                        <Camera size={34} color="#d94b93" />
-                        <p>Upload ID photo</p>
+                        <Camera
+                          size={34}
+                          color="#d94b93"
+                        />
+
+                        <p>
+                          Upload ID photo
+                        </p>
                       </div>
                     )}
 
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={handleIdChange}
-                      style={{ display: "none" }}
+                      onChange={
+                        handleIdChange
+                      }
+                      style={{
+                        display: "none",
+                      }}
                     />
                   </label>
 
-                  <label style={styles.uploadBox}>
+                  <label
+                    style={styles.uploadBox}
+                  >
                     {selfiePreview ? (
                       <img
                         src={selfiePreview}
                         alt="Selfie Preview"
-                        style={styles.photoPreview}
+                        style={
+                          styles.photoPreview
+                        }
                       />
                     ) : (
                       <div>
-                        <Camera size={34} color="#d94b93" />
-                        <p>Take real-time selfie</p>
+                        <Camera
+                          size={34}
+                          color="#d94b93"
+                        />
+
+                        <p>
+                          Take real-time
+                          selfie
+                        </p>
                       </div>
                     )}
 
@@ -713,25 +1581,47 @@ displayLocation: city.trim(),
                       type="file"
                       accept="image/*"
                       capture="user"
-                      onChange={handleSelfieChange}
-                      style={{ display: "none" }}
+                      onChange={
+                        handleSelfieChange
+                      }
+                      style={{
+                        display: "none",
+                      }}
                     />
                   </label>
 
                   <button
                     type="button"
-                    style={styles.nextButtonFull}
-                    onClick={submitVerification}
+                    style={{
+                      ...styles.nextButtonFull,
+                      ...(saving
+                        ? styles.disabledButton
+                        : {}),
+                    }}
+                    onClick={
+                      submitVerification
+                    }
                     disabled={saving}
                   >
-                    {saving ? "Submitting..." : "Submit Verification"}
-                    {!saving && <ArrowRight size={18} />}
+                    {saving
+                      ? "Submitting..."
+                      : "Submit Verification"}
+
+                    {!saving && (
+                      <ArrowRight
+                        size={18}
+                      />
+                    )}
                   </button>
 
                   <button
                     type="button"
-                    style={styles.skipTextButton}
-                    onClick={skipVerification}
+                    style={
+                      styles.skipTextButton
+                    }
+                    onClick={
+                      skipVerification
+                    }
                     disabled={saving}
                   >
                     Skip and verify later
@@ -742,10 +1632,16 @@ displayLocation: city.trim(),
           </div>
         )}
 
+        {/* FOOTER */}
+
         {step < totalSteps && (
           <div style={styles.footer}>
             {step > 1 ? (
-              <button type="button" style={styles.backButton} onClick={backStep}>
+              <button
+                type="button"
+                style={styles.backButton}
+                onClick={backStep}
+              >
                 <ArrowLeft size={18} />
                 Back
               </button>
@@ -753,7 +1649,11 @@ displayLocation: city.trim(),
               <div />
             )}
 
-            <button type="button" style={styles.nextButton} onClick={nextStep}>
+            <button
+              type="button"
+              style={styles.nextButton}
+              onClick={nextStep}
+            >
               Continue
               <ArrowRight size={18} />
             </button>
@@ -762,7 +1662,12 @@ displayLocation: city.trim(),
 
         {step === totalSteps && (
           <div style={styles.footer}>
-            <button type="button" style={styles.backButton} onClick={backStep}>
+            <button
+              type="button"
+              style={styles.backButton}
+              onClick={backStep}
+              disabled={saving}
+            >
               <ArrowLeft size={18} />
               Back
             </button>
@@ -782,17 +1687,22 @@ const styles = {
     justifyContent: "center",
     alignItems: "center",
     padding: "24px",
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    fontFamily:
+      '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   },
 
   card: {
     width: "100%",
     maxWidth: "430px",
-    background: "rgba(255, 250, 250, 0.96)",
+    background:
+      "rgba(255, 250, 250, 0.96)",
     borderRadius: "38px",
     padding: "32px",
-    boxShadow: "0 18px 45px rgba(231, 91, 150, 0.18)",
-    border: "1px solid rgba(255,255,255,0.7)",
+    boxSizing: "border-box",
+    boxShadow:
+      "0 18px 45px rgba(231, 91, 150, 0.18)",
+    border:
+      "1px solid rgba(255,255,255,0.7)",
   },
 
   logoBox: {
@@ -805,14 +1715,16 @@ const styles = {
     width: "82px",
     height: "82px",
     borderRadius: "28px",
-    background: "linear-gradient(135deg, #f5a2bc, #ef87ad, #f78e9b)",
+    background:
+      "linear-gradient(135deg, #f5a2bc, #ef87ad, #f78e9b)",
     color: "white",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     fontSize: "40px",
     fontWeight: "950",
-    boxShadow: "0 12px 28px rgba(231,91,150,0.25)",
+    boxShadow:
+      "0 12px 28px rgba(231,91,150,0.25)",
   },
 
   title: {
@@ -841,7 +1753,8 @@ const styles = {
 
   progressInner: {
     height: "100%",
-    background: "linear-gradient(90deg, #f5a2bc, #ef87ad, #d94b93)",
+    background:
+      "linear-gradient(90deg, #f5a2bc, #ef87ad, #d94b93)",
     borderRadius: "999px",
     transition: "width 0.25s ease",
   },
@@ -904,46 +1817,6 @@ const styles = {
     fontWeight: "750",
   },
 
-  photoBox: {
-    height: "260px",
-    borderRadius: "30px",
-    border: "2px dashed #f0b7cc",
-    background: "#fff8fc",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    overflow: "hidden",
-    cursor: "pointer",
-  },
-
-  photoPlaceholder: {
-    textAlign: "center",
-    color: "#80636f",
-    fontWeight: "850",
-  },
-
-  photoPreview: {
-    width: "100%",
-    height: "100%",
-    objectFit: "cover",
-  },
-
-  uploadBox: {
-    height: "180px",
-    borderRadius: "24px",
-    border: "2px dashed #f0b7cc",
-    background: "#fff8fc",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    overflow: "hidden",
-    cursor: "pointer",
-    color: "#80636f",
-    fontWeight: "850",
-    textAlign: "center",
-    marginTop: "12px",
-  },
-
   grid: {
     display: "flex",
     flexWrap: "wrap",
@@ -965,10 +1838,256 @@ const styles = {
   },
 
   pillActive: {
-    background: "linear-gradient(135deg, #f5a2bc, #ef87ad, #d94b93)",
+    background:
+      "linear-gradient(135deg, #f5a2bc, #ef87ad, #d94b93)",
     color: "white",
     border: "1px solid transparent",
-    boxShadow: "0 8px 18px rgba(231,91,150,0.22)",
+    boxShadow:
+      "0 8px 18px rgba(231,91,150,0.22)",
+  },
+
+  photoCountRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "10px",
+    marginTop: "4px",
+  },
+
+  photoCount: {
+    color: "#d94b93",
+    fontSize: "13px",
+    fontWeight: "950",
+  },
+
+  optionalText: {
+    color: "#9b7a89",
+    fontSize: "11px",
+    fontWeight: "800",
+    textAlign: "right",
+  },
+
+  mainPhotoContainer: {
+    position: "relative",
+    marginTop: "4px",
+  },
+
+  mainBadge: {
+    position: "absolute",
+    zIndex: 4,
+    top: "14px",
+    left: "14px",
+    background:
+      "rgba(217, 75, 147, 0.92)",
+    color: "white",
+    borderRadius: "999px",
+    padding: "7px 12px",
+    fontSize: "11px",
+    fontWeight: "950",
+    boxShadow:
+      "0 6px 16px rgba(66, 22, 45, 0.18)",
+  },
+
+  photoBox: {
+    height: "280px",
+    borderRadius: "30px",
+    border: "2px dashed #f0b7cc",
+    background: "#fff8fc",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+    cursor: "pointer",
+  },
+
+  photoPreview: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
+  },
+
+  photoPlaceholder: {
+    padding: "30px",
+    textAlign: "center",
+    color: "#80636f",
+    fontWeight: "850",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+  },
+
+  cameraCircle: {
+    width: "66px",
+    height: "66px",
+    borderRadius: "24px",
+    background: "#ffe8f1",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: "12px",
+  },
+
+  photoPlaceholderTitle: {
+    margin: 0,
+    fontSize: "16px",
+    color: "#d94b93",
+    fontWeight: "950",
+  },
+
+  photoPlaceholderText: {
+    marginTop: "7px",
+    maxWidth: "220px",
+    color: "#8a6c79",
+    fontSize: "12px",
+    lineHeight: 1.5,
+    fontWeight: "750",
+  },
+
+  replacePhotoButton: {
+    position: "absolute",
+    zIndex: 5,
+    right: "14px",
+    bottom: "14px",
+    height: "39px",
+    borderRadius: "999px",
+    border:
+      "1px solid rgba(255,255,255,0.5)",
+    background:
+      "rgba(255,255,255,0.92)",
+    color: "#d94b93",
+    padding: "0 13px",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    fontSize: "12px",
+    fontWeight: "950",
+    cursor: "pointer",
+    boxShadow:
+      "0 8px 18px rgba(48,20,34,0.18)",
+  },
+
+  removePhotoButton: {
+    position: "absolute",
+    zIndex: 5,
+    top: "13px",
+    right: "13px",
+    width: "38px",
+    height: "38px",
+    borderRadius: "50%",
+    border:
+      "1px solid rgba(255,255,255,0.45)",
+    background:
+      "rgba(30,20,25,0.55)",
+    color: "white",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    backdropFilter: "blur(8px)",
+  },
+
+  extraPhotosTitle: {
+    margin: "8px 0 0",
+    color: "#d94b93",
+    fontSize: "16px",
+    fontWeight: "950",
+  },
+
+  extraPhotosHelper: {
+    margin: "-5px 0 1px",
+    color: "#80636f",
+    fontSize: "12px",
+    lineHeight: 1.5,
+    fontWeight: "750",
+  },
+
+  optionalPhotosGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "12px",
+  },
+
+  optionalPhotoContainer: {
+    position: "relative",
+  },
+
+  optionalPhotoBox: {
+    width: "100%",
+    height: "170px",
+    borderRadius: "24px",
+    border: "2px dashed #f0b7cc",
+    background: "#fff8fc",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+    cursor: "pointer",
+    boxSizing: "border-box",
+  },
+
+  optionalPhotoPlaceholder: {
+    color: "#d94b93",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "7px",
+    fontSize: "12px",
+    fontWeight: "950",
+  },
+
+  smallRemoveButton: {
+    position: "absolute",
+    zIndex: 4,
+    top: "9px",
+    right: "9px",
+    width: "33px",
+    height: "33px",
+    borderRadius: "50%",
+    border:
+      "1px solid rgba(255,255,255,0.5)",
+    background:
+      "rgba(30,20,25,0.55)",
+    color: "white",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    backdropFilter: "blur(8px)",
+  },
+
+  photoTip: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "10px",
+    background: "#fff0f6",
+    borderRadius: "18px",
+    padding: "13px",
+    marginTop: "4px",
+  },
+
+  photoTipText: {
+    margin: 0,
+    color: "#80636f",
+    fontSize: "12px",
+    lineHeight: 1.5,
+    fontWeight: "750",
+  },
+
+  uploadBox: {
+    height: "180px",
+    borderRadius: "24px",
+    border: "2px dashed #f0b7cc",
+    background: "#fff8fc",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+    cursor: "pointer",
+    color: "#80636f",
+    fontWeight: "850",
+    textAlign: "center",
+    marginTop: "12px",
   },
 
   locationIcon: {
@@ -984,7 +2103,8 @@ const styles = {
 
   locationButton: {
     border: "none",
-    background: "linear-gradient(135deg, #f5a2bc, #ef87ad, #d94b93)",
+    background:
+      "linear-gradient(135deg, #f5a2bc, #ef87ad, #d94b93)",
     color: "white",
     borderRadius: "999px",
     padding: "14px 18px",
@@ -995,7 +2115,8 @@ const styles = {
     justifyContent: "center",
     gap: "8px",
     cursor: "pointer",
-    boxShadow: "0 10px 24px rgba(231,91,150,0.24)",
+    boxShadow:
+      "0 10px 24px rgba(231,91,150,0.24)",
   },
 
   locationSaved: {
@@ -1071,7 +2192,8 @@ const styles = {
 
   nextButton: {
     border: "none",
-    background: "linear-gradient(135deg, #f5a2bc, #ef87ad, #d94b93)",
+    background:
+      "linear-gradient(135deg, #f5a2bc, #ef87ad, #d94b93)",
     color: "white",
     borderRadius: "999px",
     padding: "13px 20px",
@@ -1082,13 +2204,15 @@ const styles = {
     justifyContent: "center",
     gap: "6px",
     cursor: "pointer",
-    boxShadow: "0 10px 24px rgba(231,91,150,0.24)",
+    boxShadow:
+      "0 10px 24px rgba(231,91,150,0.24)",
   },
 
   nextButtonFull: {
     width: "100%",
     border: "none",
-    background: "linear-gradient(135deg, #f5a2bc, #ef87ad, #d94b93)",
+    background:
+      "linear-gradient(135deg, #f5a2bc, #ef87ad, #d94b93)",
     color: "white",
     borderRadius: "999px",
     padding: "14px 20px",
@@ -1099,7 +2223,8 @@ const styles = {
     justifyContent: "center",
     gap: "6px",
     cursor: "pointer",
-    boxShadow: "0 10px 24px rgba(231,91,150,0.24)",
+    boxShadow:
+      "0 10px 24px rgba(231,91,150,0.24)",
     marginTop: "14px",
   },
 
@@ -1126,5 +2251,10 @@ const styles = {
     fontWeight: "850",
     marginTop: "8px",
     cursor: "pointer",
+  },
+
+  disabledButton: {
+    opacity: 0.6,
+    cursor: "not-allowed",
   },
 };

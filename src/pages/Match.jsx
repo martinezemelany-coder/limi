@@ -1,4 +1,3 @@
-import { getFriendlyFirebaseErrorMessage } from "../lib/firebaseError";
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -7,12 +6,12 @@ import {
   Star,
   MessageCircle,
   MapPin,
-  SlidersHorizontal,
   ShieldCheck,
   Flag,
   Ban,
   Sparkles,
   RotateCcw,
+  Users,
 } from "lucide-react";
 
 import { auth, db } from "../lib/firebase";
@@ -27,79 +26,9 @@ import {
   setDoc,
 } from "firebase/firestore";
 
-const interestFilters = [
-  "All",
-  "Fashion",
-  "Art",
-  "Travel",
-  "Skincare",
-  "Fitness",
-  "Brunch",
-  "Study",
-  "Anime",
-  "Foodie",
-  "Technology",
-  "Business",
-  "Student",
-  "Glow Up",
-];
-
-const demoPeople = [
-  {
-    uid: "demo-ava",
-    name: "Ava",
-    age: 20,
-    city: "Miami, FL",
-    bio: "Cafe dates, fashion, pilates, and spontaneous beach days 💕",
-    interests: ["Fashion", "Cafe", "Pilates", "Travel"],
-    photoURL:
-      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=1200&q=80",
-    verified: true,
-  },
-  {
-    uid: "demo-luna",
-    name: "Luna",
-    age: 21,
-    city: "Miami, FL",
-    bio: "Study girlie by day, skincare and sushi lover by night ✨",
-    interests: ["Study", "Skincare", "Foodie", "Self Care"],
-    photoURL:
-      "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=1200&q=80",
-    verified: false,
-  },
-  {
-    uid: "demo-mia",
-    name: "Mia",
-    age: 19,
-    city: "Miami, FL",
-    bio: "Gym girlie, beach walks, matcha, and cute reset days 🎀",
-    interests: ["Fitness", "Beach", "Glow Up", "Cafe"],
-    photoURL:
-      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=1200&q=80",
-    verified: true,
-  },
-];
-
-function normalizeCity(city = "") {
-  return city.trim().toLowerCase().split(",")[0];
-}
-
-function getAuthProfile() {
-  const user = auth.currentUser;
-
-  return {
-    uid: user?.uid || "guest",
-    name: user?.displayName || user?.email?.split("@")[0] || "Limi Girl",
-    email: user?.email || "",
-    avatar: (user?.displayName || user?.email || "L").charAt(0).toUpperCase(),
-    photoURL: user?.photoURL || "",
-    city: "",
-    age: "",
-    bio: "",
-    interests: [],
-    verified: false,
-  };
-}
+/* -------------------------------------------------------
+   GENERAL HELPERS
+------------------------------------------------------- */
 
 function defaultActivity() {
   return {
@@ -111,6 +40,318 @@ function defaultActivity() {
     reported: [],
   };
 }
+
+function getAuthProfile() {
+  const user = auth.currentUser;
+  const authPhoto = user?.photoURL || "";
+
+  return {
+    uid: user?.uid || "",
+    name:
+      user?.displayName ||
+      user?.email?.split("@")[0] ||
+      "Limi User",
+    email: user?.email || "",
+    photoURL: authPhoto,
+    profilePhotos: authPhoto ? [authPhoto] : [],
+    age: "",
+    city: "",
+    bio: "",
+    interests: [],
+    friendActivities: [],
+    socialEnergy: "",
+    vibes: [],
+    verified: false,
+    location: null,
+    distancePreference: 25,
+  };
+}
+
+function normalizeText(value = "") {
+  return String(value).trim().toLowerCase();
+}
+
+function normalizeArray(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (typeof item === "string") {
+          return item.trim();
+        }
+
+        if (item && typeof item === "object") {
+          return (
+            item.label ||
+            item.name ||
+            item.title ||
+            item.value ||
+            ""
+          ).trim();
+        }
+
+        return "";
+      })
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    return [value.trim()];
+  }
+
+  return [];
+}
+
+function getProfilePhoto(data = {}) {
+  return (
+    data.profileImage ||
+    data.profilePhotoURL ||
+    data.profilePhoto ||
+    data.photoURL ||
+    data.avatarURL ||
+    data.imageURL ||
+    ""
+  );
+}
+
+function getProfilePhotos(data = {}) {
+  const mainPhoto = getProfilePhoto(data);
+
+  const savedPhotos = Array.isArray(data.profilePhotos)
+    ? data.profilePhotos.filter(
+        (photo) => typeof photo === "string" && photo.trim()
+      )
+    : [];
+
+  if (!savedPhotos.length) {
+    return mainPhoto ? [mainPhoto] : [];
+  }
+
+  if (mainPhoto && !savedPhotos.includes(mainPhoto)) {
+    return [mainPhoto, ...savedPhotos].slice(0, 3);
+  }
+
+  return savedPhotos.slice(0, 3);
+}
+
+function getUserName(data = {}) {
+  return (
+    data.name ||
+    data.displayName ||
+    data.fullName ||
+    data.firstName ||
+    "Limi User"
+  );
+}
+
+function getFriendActivities(data = {}) {
+  return normalizeArray(
+    data.friendActivities ||
+      data.activities ||
+      data.activitiesWithFriends ||
+      data.friendPlans ||
+      data.thingsToDo ||
+      data.whatWouldYouDo ||
+      data.whatTheyWouldDo ||
+      []
+  );
+}
+
+function getSocialEnergy(data = {}) {
+  const value =
+    data.socialEnergy ||
+    data.energy ||
+    data.personality ||
+    data.socialStyle ||
+    "";
+
+  if (Array.isArray(value)) {
+    return value[0] || "";
+  }
+
+  return value || "";
+}
+
+function getVibes(data = {}) {
+  return normalizeArray(
+    data.vibes ||
+      data.vibe ||
+      data.personalityVibes ||
+      data.selectedVibes ||
+      []
+  );
+}
+
+function getDistancePreference(data = {}) {
+  const distance = Number(data.distancePreference);
+
+  if (!Number.isFinite(distance) || distance < 5) {
+    return 25;
+  }
+
+  return Math.min(distance, 100);
+}
+
+/* -------------------------------------------------------
+   LOCATION HELPERS
+------------------------------------------------------- */
+
+function convertCoordinate(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return null;
+  }
+
+  return number;
+}
+
+function getCoordinates(data = {}) {
+  const possibleLocations = [
+    data.location,
+    data.coordinates,
+    data.geoLocation,
+    data.geolocation,
+    data.position,
+    data.locationCoordinates,
+  ];
+
+  for (const location of possibleLocations) {
+    if (!location) continue;
+
+    const latitude = convertCoordinate(
+      location.latitude ??
+        location.lat ??
+        location._lat
+    );
+
+    const longitude = convertCoordinate(
+      location.longitude ??
+        location.lng ??
+        location.lon ??
+        location._long
+    );
+
+    if (latitude !== null && longitude !== null) {
+      return {
+        latitude,
+        longitude,
+      };
+    }
+  }
+
+  const latitude = convertCoordinate(
+    data.latitude ??
+      data.lat ??
+      data.locationLatitude
+  );
+
+  const longitude = convertCoordinate(
+    data.longitude ??
+      data.lng ??
+      data.lon ??
+      data.locationLongitude
+  );
+
+  if (latitude !== null && longitude !== null) {
+    return {
+      latitude,
+      longitude,
+    };
+  }
+
+  return null;
+}
+
+function degreesToRadians(degrees) {
+  return degrees * (Math.PI / 180);
+}
+
+function calculateDistanceMiles(firstLocation, secondLocation) {
+  if (!firstLocation || !secondLocation) {
+    return null;
+  }
+
+  const earthRadiusMiles = 3958.8;
+
+  const latitudeDifference = degreesToRadians(
+    secondLocation.latitude - firstLocation.latitude
+  );
+
+  const longitudeDifference = degreesToRadians(
+    secondLocation.longitude - firstLocation.longitude
+  );
+
+  const firstLatitude = degreesToRadians(
+    firstLocation.latitude
+  );
+
+  const secondLatitude = degreesToRadians(
+    secondLocation.latitude
+  );
+
+  const a =
+    Math.sin(latitudeDifference / 2) ** 2 +
+    Math.cos(firstLatitude) *
+      Math.cos(secondLatitude) *
+      Math.sin(longitudeDifference / 2) ** 2;
+
+  const c =
+    2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return earthRadiusMiles * c;
+}
+
+/* -------------------------------------------------------
+   SHARED TRAIT HELPERS
+------------------------------------------------------- */
+
+function valuesMatch(firstValue, secondValue) {
+  return normalizeText(firstValue) === normalizeText(secondValue);
+}
+
+function includesNormalized(list = [], value = "") {
+  return list.some((item) => valuesMatch(item, value));
+}
+
+function countSharedItems(currentUser, otherUser) {
+  const sharedInterests = (otherUser.interests || []).filter(
+    (item) =>
+      includesNormalized(currentUser.interests || [], item)
+  );
+
+  const sharedActivities = (
+    otherUser.friendActivities || []
+  ).filter((item) =>
+    includesNormalized(
+      currentUser.friendActivities || [],
+      item
+    )
+  );
+
+  const sharedVibes = (otherUser.vibes || []).filter(
+    (item) =>
+      includesNormalized(currentUser.vibes || [], item)
+  );
+
+  const sameSocialEnergy =
+    currentUser.socialEnergy &&
+    otherUser.socialEnergy &&
+    valuesMatch(
+      currentUser.socialEnergy,
+      otherUser.socialEnergy
+    );
+
+  return (
+    sharedInterests.length +
+    sharedActivities.length +
+    sharedVibes.length +
+    (sameSocialEnergy ? 1 : 0)
+  );
+}
+
+/* -------------------------------------------------------
+   PROFILE AVATAR
+------------------------------------------------------- */
 
 function ProfileAvatar({ person, size = "large" }) {
   const classes =
@@ -137,22 +378,16 @@ function ProfileAvatar({ person, size = "large" }) {
   );
 }
 
-function ActionPill({ active, children, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`shrink-0 rounded-full border px-5 py-3 text-sm font-black transition ${
-        active
-          ? "border-transparent bg-gradient-to-r from-[#f29dbc] to-[#f06aa8] text-white shadow-sm"
-          : "border-[#f1d8e3] bg-white text-[#6f5d66]"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
+/* -------------------------------------------------------
+   MODAL SHELL
+------------------------------------------------------- */
 
-function ModalShell({ open, onClose, title, children }) {
+function ModalShell({
+  open,
+  onClose,
+  title,
+  children,
+}) {
   if (!open) return null;
 
   return (
@@ -167,6 +402,7 @@ function ModalShell({ open, onClose, title, children }) {
           </h2>
 
           <button
+            type="button"
             onClick={onClose}
             className="flex h-11 w-11 items-center justify-center rounded-full bg-[#ffe4ef] text-[#d94b93]"
           >
@@ -180,7 +416,16 @@ function ModalShell({ open, onClose, title, children }) {
   );
 }
 
-function MatchModal({ person, open, onMessage, onKeepMatching }) {
+/* -------------------------------------------------------
+   NEW MATCH MODAL
+------------------------------------------------------- */
+
+function MatchModal({
+  person,
+  open,
+  onMessage,
+  onKeepMatching,
+}) {
   if (!open || !person) return null;
 
   return (
@@ -207,21 +452,29 @@ function MatchModal({ person, open, onMessage, onKeepMatching }) {
           </div>
 
           <h3 className="mt-3 text-2xl font-black text-[#1f1720]">
-            {person.name}, {person.age}
+            {person.name}
+            {person.age ? `, ${person.age}` : ""}
           </h3>
 
           <p className="mt-1 flex items-center justify-center gap-1 text-sm font-bold text-[#96607f]">
             <MapPin size={15} />
-            {person.city}
+
+            {person.distanceMiles !== null &&
+            person.distanceMiles !== undefined
+              ? `${Math.round(person.distanceMiles)} miles away`
+              : person.city || "Location unavailable"}
           </p>
 
-          <p className="mt-3 text-sm font-semibold leading-6 text-[#80636f]">
-            {person.bio}
-          </p>
+          {person.bio && (
+            <p className="mt-3 text-sm font-semibold leading-6 text-[#80636f]">
+              {person.bio}
+            </p>
+          )}
         </div>
 
         <div className="mt-6 grid grid-cols-1 gap-3">
           <button
+            type="button"
             onClick={onMessage}
             className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-4 text-lg font-black text-white shadow-[0_10px_24px_rgba(231,91,150,0.24)]"
           >
@@ -230,6 +483,7 @@ function MatchModal({ person, open, onMessage, onKeepMatching }) {
           </button>
 
           <button
+            type="button"
             onClick={onKeepMatching}
             className="w-full rounded-full border border-[#f0d8e2] bg-white py-4 text-lg font-black text-[#d35a91]"
           >
@@ -241,51 +495,280 @@ function MatchModal({ person, open, onMessage, onKeepMatching }) {
   );
 }
 
+/* -------------------------------------------------------
+   TRAIT SECTION
+------------------------------------------------------- */
+
+function TraitTag({ label, isShared }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border px-3 py-2 text-xs font-black transition ${
+        isShared
+          ? "border-[#ed7dab] bg-gradient-to-r from-[#f6a1bd] to-[#f18bb1] text-white shadow-sm"
+          : "border-[#f0dce5] bg-[#fff8fb] text-[#725d67]"
+      }`}
+    >
+      {isShared && (
+        <Heart size={12} fill="currentColor" />
+      )}
+
+      {label}
+    </span>
+  );
+}
+
+function TraitSection({
+  title,
+  items,
+  currentUserItems,
+  emptyText,
+}) {
+  const cleanItems = normalizeArray(items);
+
+  if (!cleanItems.length) {
+    return (
+      <div>
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-[#bd7897]">
+          {title}
+        </p>
+
+        <p className="mt-2 text-sm font-semibold text-[#a8919b]">
+          {emptyText}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p className="text-xs font-black uppercase tracking-[0.18em] text-[#bd7897]">
+        {title}
+      </p>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {cleanItems.map((item, index) => (
+          <TraitTag
+            key={`${title}-${item}-${index}`}
+            label={item}
+            isShared={includesNormalized(
+              currentUserItems,
+              item
+            )}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------
+   PROFILE CARD
+------------------------------------------------------- */
+
 function PersonCard({
   person,
+  currentUser,
   onLike,
   onSuperLike,
   onPass,
   onReport,
   onBlock,
 }) {
+  const profilePhotos =
+    person.profilePhotos?.length > 0
+      ? person.profilePhotos
+      : person.photoURL
+        ? [person.photoURL]
+        : [];
+
+  const [activePhotoIndex, setActivePhotoIndex] =
+    useState(0);
+
+  const [touchStartX, setTouchStartX] = useState(null);
+
+  useEffect(() => {
+    setActivePhotoIndex(0);
+    setTouchStartX(null);
+  }, [person.uid]);
+
+  const sharedCount = countSharedItems(
+    currentUser,
+    person
+  );
+
+  const sharedSocialEnergy =
+    currentUser.socialEnergy &&
+    person.socialEnergy &&
+    valuesMatch(
+      currentUser.socialEnergy,
+      person.socialEnergy
+    );
+
+  const currentPhoto =
+    profilePhotos[activePhotoIndex] || "";
+
+  const previousPhoto = () => {
+    if (profilePhotos.length <= 1) return;
+
+    setActivePhotoIndex((currentIndex) =>
+      currentIndex === 0
+        ? profilePhotos.length - 1
+        : currentIndex - 1
+    );
+  };
+
+  const nextPhoto = () => {
+    if (profilePhotos.length <= 1) return;
+
+    setActivePhotoIndex((currentIndex) =>
+      currentIndex === profilePhotos.length - 1
+        ? 0
+        : currentIndex + 1
+    );
+  };
+
+  const handleImageTap = (event) => {
+    if (profilePhotos.length <= 1) return;
+
+    const bounds =
+      event.currentTarget.getBoundingClientRect();
+
+    const tapPosition =
+      event.clientX - bounds.left;
+
+    if (tapPosition < bounds.width / 2) {
+      previousPhoto();
+    } else {
+      nextPhoto();
+    }
+  };
+
+  const handleTouchStart = (event) => {
+    setTouchStartX(
+      event.touches[0]?.clientX ?? null
+    );
+  };
+
+  const handleTouchEnd = (event) => {
+    if (
+      touchStartX === null ||
+      profilePhotos.length <= 1
+    ) {
+      return;
+    }
+
+    const endingX =
+      event.changedTouches[0]?.clientX ??
+      touchStartX;
+
+    const swipeDistance = endingX - touchStartX;
+
+    if (Math.abs(swipeDistance) >= 45) {
+      if (swipeDistance < 0) {
+        nextPhoto();
+      } else {
+        previousPhoto();
+      }
+    }
+
+    setTouchStartX(null);
+  };
+
   return (
     <div className="overflow-hidden rounded-[38px] bg-white shadow-[0_14px_36px_rgba(239,148,181,0.16)]">
-      <div className="relative h-[30rem] overflow-hidden bg-[#f8dce6]">
-        {person.photoURL ? (
+      <div
+        className="relative h-[30rem] select-none overflow-hidden bg-[#f8dce6]"
+        onClick={handleImageTap}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        {currentPhoto ? (
           <img
-            src={person.photoURL}
-            alt={person.name}
+            key={currentPhoto}
+            src={currentPhoto}
+            alt={`${person.name} profile ${activePhotoIndex + 1}`}
+            draggable="false"
             className="h-full w-full object-cover"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#f5a2bc] via-[#ef87ad] to-[#f78e9b] text-8xl font-black text-white">
-            {(person.name || "L").charAt(0).toUpperCase()}
+            {(person.name || "L")
+              .charAt(0)
+              .toUpperCase()}
           </div>
         )}
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
 
-        <div className="absolute left-5 right-5 top-5 flex justify-end gap-3">
+        {profilePhotos.length > 1 && (
+          <div
+            className="absolute left-1/2 top-4 z-20 flex -translate-x-1/2 gap-2"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+            {profilePhotos.map((photo, index) => (
+              <button
+                key={`${photo}-${index}`}
+                type="button"
+                aria-label={`View photo ${index + 1}`}
+                onClick={() =>
+                  setActivePhotoIndex(index)
+                }
+                className={`h-2 rounded-full shadow-sm transition-all ${
+                  activePhotoIndex === index
+                    ? "w-7 bg-white"
+                    : "w-2 bg-white/55"
+                }`}
+              />
+            ))}
+          </div>
+        )}
+
+        <div
+          className="absolute right-5 top-5 z-30 flex gap-3"
+          onClick={(event) =>
+            event.stopPropagation()
+          }
+        >
           <button
+            type="button"
             onClick={() => onReport(person)}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-white/25 text-white backdrop-blur"
+            aria-label={`Report ${person.name}`}
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-black/25 text-white backdrop-blur-md"
           >
             <Flag size={18} />
           </button>
 
           <button
+            type="button"
             onClick={() => onBlock(person)}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-white/25 text-white backdrop-blur"
+            aria-label={`Block ${person.name}`}
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-black/25 text-white backdrop-blur-md"
           >
             <Ban size={18} />
           </button>
         </div>
 
-        <div className="absolute bottom-5 left-5 right-5 text-white">
+        <div className="pointer-events-none absolute bottom-5 left-5 right-5 text-white">
+          {sharedCount > 0 && (
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[#f06fa6]/90 px-4 py-2 text-xs font-black shadow-lg backdrop-blur">
+              <Sparkles size={14} />
+
+              {sharedCount}{" "}
+              {sharedCount === 1
+                ? "thing"
+                : "things"}{" "}
+              in common
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-4xl font-black tracking-[-0.05em]">
-              {person.name}, {person.age}
+              {person.name}
+              {person.age
+                ? `, ${person.age}`
+                : ""}
             </h2>
 
             {person.verified && (
@@ -296,53 +779,122 @@ function PersonCard({
             )}
           </div>
 
-          <div className="mt-2 flex items-center gap-2 text-sm font-black text-white/90">
-            <MapPin size={16} />
-            {person.city}
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-black text-white/90">
+            <span className="flex items-center gap-2">
+              <MapPin size={16} />
+
+              {person.distanceMiles !== null &&
+              person.distanceMiles !== undefined
+                ? `${Math.round(
+                    person.distanceMiles
+                  )} miles away`
+                : person.city ||
+                  "Location unavailable"}
+            </span>
+
+            {person.city && (
+              <span>{person.city}</span>
+            )}
           </div>
 
-          <p className="mt-4 text-base font-semibold leading-7 text-white/95">
-            {person.bio}
-          </p>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {(person.interests || []).slice(0, 4).map((interest) => (
-              <span
-                key={interest}
-                className="rounded-full bg-white/20 px-3 py-1 text-xs font-black backdrop-blur"
-              >
-                {interest}
-              </span>
-            ))}
-          </div>
+          {person.bio && (
+            <p className="mt-4 text-base font-semibold leading-7 text-white/95">
+              {person.bio}
+            </p>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 p-5">
+      <div className="space-y-6 p-5">
+        <TraitSection
+          title="Interests"
+          items={person.interests}
+          currentUserItems={
+            currentUser.interests || []
+          }
+          emptyText="No interests added yet."
+        />
+
+        <TraitSection
+          title="What they’d do with friends"
+          items={person.friendActivities}
+          currentUserItems={
+            currentUser.friendActivities || []
+          }
+          emptyText="No activities added yet."
+        />
+
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#bd7897]">
+            Social energy
+          </p>
+
+          {person.socialEnergy ? (
+            <div className="mt-3">
+              <TraitTag
+                label={person.socialEnergy}
+                isShared={sharedSocialEnergy}
+              />
+            </div>
+          ) : (
+            <p className="mt-2 text-sm font-semibold text-[#a8919b]">
+              No social energy selected yet.
+            </p>
+          )}
+        </div>
+
+        <TraitSection
+          title="Vibes"
+          items={person.vibes}
+          currentUserItems={
+            currentUser.vibes || []
+          }
+          emptyText="No vibes added yet."
+        />
+
+        <div className="rounded-[24px] bg-[#fff5f9] px-4 py-3">
+          <p className="text-center text-xs font-bold leading-5 text-[#9a6b80]">
+            Pink tags show answers you and{" "}
+            {person.name} have in common.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 border-t border-[#f8e5ed] p-5">
         <button
+          type="button"
           onClick={() => onPass(person)}
-          className="flex items-center justify-center gap-2 rounded-full border border-[#f1d8e3] bg-white py-4 text-lg font-black text-[#80636f]"
+          aria-label={`Pass on ${person.name}`}
+          className="flex items-center justify-center rounded-full border border-[#f1d8e3] bg-white py-4 text-lg font-black text-[#80636f]"
         >
-          <X size={22} />
+          <X size={23} />
         </button>
 
         <button
+          type="button"
           onClick={() => onSuperLike(person)}
-          className="flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#f4c1d2] to-[#f6a9c3] py-4 text-lg font-black text-white"
+          aria-label={`Super like ${person.name}`}
+          className="flex items-center justify-center rounded-full bg-gradient-to-r from-[#f4c1d2] to-[#f6a9c3] py-4 text-lg font-black text-white"
         >
-          <Star size={22} fill="currentColor" />
+          <Star size={23} fill="currentColor" />
         </button>
 
         <button
+          type="button"
           onClick={() => onLike(person)}
-          className="flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-4 text-lg font-black text-white"
+          aria-label={`Like ${person.name}`}
+          className="flex items-center justify-center rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-4 text-lg font-black text-white"
         >
-          <Heart size={22} fill="currentColor" />
+          <Heart size={23} fill="currentColor" />
         </button>
       </div>
     </div>
   );
 }
+
+/* -------------------------------------------------------
+   PROFILE LIST MODAL
+------------------------------------------------------- */
 
 function PersonListModal({
   open,
@@ -351,10 +903,14 @@ function PersonListModal({
   people,
   emptyText,
   onChat,
-  showChat,
+  showChat = false,
 }) {
   return (
-    <ModalShell open={open} onClose={onClose} title={title}>
+    <ModalShell
+      open={open}
+      onClose={onClose}
+      title={title}
+    >
       <div className="space-y-3">
         {people.length ? (
           people.map((person) => (
@@ -363,20 +919,34 @@ function PersonListModal({
               className="flex items-center justify-between gap-3 rounded-[26px] bg-white p-4 shadow-sm"
             >
               <div className="flex min-w-0 items-center gap-3">
-                <ProfileAvatar person={person} size="small" />
+                <ProfileAvatar
+                  person={person}
+                  size="small"
+                />
 
                 <div className="min-w-0">
                   <p className="truncate text-base font-black text-[#1f1720]">
-                    {person.name}, {person.age}
+                    {person.name}
+                    {person.age
+                      ? `, ${person.age}`
+                      : ""}
                   </p>
+
                   <p className="truncate text-sm font-semibold text-[#80636f]">
-                    {person.city}
+                    {person.distanceMiles !== null &&
+                    person.distanceMiles !== undefined
+                      ? `${Math.round(
+                          person.distanceMiles
+                        )} miles away`
+                      : person.city ||
+                        "Location unavailable"}
                   </p>
                 </div>
               </div>
 
               {showChat && (
                 <button
+                  type="button"
                   onClick={() => onChat(person)}
                   className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-r from-[#f4a1bd] to-[#f06aa8] text-white"
                 >
@@ -387,8 +957,14 @@ function PersonListModal({
           ))
         ) : (
           <div className="rounded-[26px] bg-white p-6 text-center shadow-sm">
-            <Sparkles size={34} className="mx-auto mb-3 text-[#f089b0]" />
-            <p className="font-black text-[#80636f]">{emptyText}</p>
+            <Sparkles
+              size={34}
+              className="mx-auto mb-3 text-[#f089b0]"
+            />
+
+            <p className="font-black text-[#80636f]">
+              {emptyText}
+            </p>
           </div>
         )}
       </div>
@@ -396,111 +972,282 @@ function PersonListModal({
   );
 }
 
+/* -------------------------------------------------------
+   MAIN MATCH PAGE
+------------------------------------------------------- */
+
 export default function Match() {
   const navigate = useNavigate();
 
-  const [currentUser, setCurrentUser] = useState(getAuthProfile());
+  const [currentUser, setCurrentUser] =
+    useState(getAuthProfile());
+
   const [people, setPeople] = useState([]);
-  const [activity, setActivity] = useState(defaultActivity());
 
-  const [interestFilter, setInterestFilter] = useState("All");
-  const [areaEnabled, setAreaEnabled] = useState(true);
+  const [activity, setActivity] = useState(
+    defaultActivity()
+  );
 
-  const [likedOpen, setLikedOpen] = useState(false);
-  const [superLikedOpen, setSuperLikedOpen] = useState(false);
-  const [passedOpen, setPassedOpen] = useState(false);
-  const [matchesOpen, setMatchesOpen] = useState(false);
-  const [newMatch, setNewMatch] = useState(null);
+  const [loadingUser, setLoadingUser] =
+    useState(true);
 
-  const uid = auth.currentUser?.uid;
+  const [loadingPeople, setLoadingPeople] =
+    useState(true);
+
+  const [likedOpen, setLikedOpen] =
+    useState(false);
+
+  const [superLikedOpen, setSuperLikedOpen] =
+    useState(false);
+
+  const [passedOpen, setPassedOpen] =
+    useState(false);
+
+  const [matchesOpen, setMatchesOpen] =
+    useState(false);
+
+  const [newMatch, setNewMatch] =
+    useState(null);
+
+  const uid = auth.currentUser?.uid || "";
+
+  /* -------------------------------------------------------
+     LOAD CURRENT USER
+  ------------------------------------------------------- */
 
   useEffect(() => {
-    if (!uid) return;
+    if (!uid) {
+      setLoadingUser(false);
+      return undefined;
+    }
 
     const userRef = doc(db, "users", uid);
 
-    const unsubUser = onSnapshot(userRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
+    const unsubscribe = onSnapshot(
+      userRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
 
-        const profilePhoto =
-          data.profileImage ||
-          data.profilePhotoURL ||
-          data.profilePhoto ||
-          data.photoURL ||
-          auth.currentUser?.photoURL ||
+          setCurrentUser({
+            ...getAuthProfile(),
+            ...data,
+            uid,
+            name: getUserName(data),
+
+            photoURL:
+              getProfilePhoto(data) ||
+              auth.currentUser?.photoURL ||
+              "",
+
+            profilePhotos:
+              getProfilePhotos(data),
+
+            city:
+              data.city ||
+              data.displayLocation ||
+              data.location?.displayLocation ||
+              data.location?.city ||
+              "",
+
+            interests: normalizeArray(
+              data.interests
+            ),
+
+            friendActivities:
+              getFriendActivities(data),
+
+            socialEnergy:
+              getSocialEnergy(data),
+
+            vibes: getVibes(data),
+
+            location: getCoordinates(data),
+
+            distancePreference:
+              getDistancePreference(data),
+
+            verified:
+              data.verified === true ||
+              data.isVerified === true ||
+              data.verificationStatus ===
+                "approved",
+          });
+        } else {
+          setCurrentUser(getAuthProfile());
+        }
+
+        setLoadingUser(false);
+      },
+      (error) => {
+        console.error(
+          "Unable to load current user:",
+          error
+        );
+
+        setLoadingUser(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [uid]);
+
+  /* -------------------------------------------------------
+     LOAD ALL REAL USERS
+  ------------------------------------------------------- */
+
+  useEffect(() => {
+    if (!uid) {
+      setPeople([]);
+      setLoadingPeople(false);
+      return undefined;
+    }
+
+    const usersQuery = query(
+      collection(db, "users")
+    );
+
+    const unsubscribe = onSnapshot(
+      usersQuery,
+      (snapshot) => {
+        const signedInEmail =
+          auth.currentUser?.email?.toLowerCase() ||
           "";
 
-        setCurrentUser({
-          ...getAuthProfile(),
-          ...data,
-          uid,
-          photoURL: profilePhoto,
-          city: data.city || "",
-          interests: data.interests || [],
-        });
+        const realUsers = snapshot.docs
+          .map((userDocument) => {
+            const data = userDocument.data();
+
+            return {
+              ...data,
+              uid: userDocument.id,
+              name: getUserName(data),
+              email: data.email || "",
+
+              photoURL: getProfilePhoto(data),
+
+              profilePhotos:
+                getProfilePhotos(data),
+
+              city:
+                data.city ||
+                data.displayLocation ||
+                data.location?.displayLocation ||
+                data.location?.city ||
+                "",
+
+              interests: normalizeArray(
+                data.interests
+              ),
+
+              friendActivities:
+                getFriendActivities(data),
+
+              socialEnergy:
+                getSocialEnergy(data),
+
+              vibes: getVibes(data),
+
+              location:
+                getCoordinates(data),
+
+              distanceMiles: null,
+
+              verified:
+                data.verified === true ||
+                data.isVerified === true ||
+                data.verificationStatus ===
+                  "approved",
+            };
+          })
+          .filter((person) => {
+            const sameUid =
+              person.uid === uid;
+
+            const personEmail =
+              person.email?.toLowerCase() ||
+              "";
+
+            const sameEmail =
+              personEmail &&
+              signedInEmail &&
+              personEmail === signedInEmail;
+
+            const deleted =
+              person.deleted === true ||
+              person.accountDeleted === true ||
+              person.status === "deleted";
+
+            return (
+              !sameUid &&
+              !sameEmail &&
+              !deleted
+            );
+          });
+
+        setPeople(realUsers);
+        setLoadingPeople(false);
+      },
+      (error) => {
+        console.error(
+          "Unable to load Match profiles:",
+          error
+        );
+
+        setPeople([]);
+        setLoadingPeople(false);
       }
-    });
-
-    return () => unsubUser();
-  }, [uid]);
-
-  useEffect(() => {
-    const q = query(collection(db, "users"));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const realUsers = snapshot.docs
-        .map((item) => {
-          const data = item.data();
-
-          return {
-            uid: item.id,
-            ...data,
-            photoURL:
-              data.profileImage ||
-              data.profilePhotoURL ||
-              data.profilePhoto ||
-              data.photoURL ||
-              "",
-          };
-        })
-        .filter((person) => {
-          const sameUid = person.uid === uid;
-          const sameEmail = 
-             person.email &&
-             auth.currentUser?.email &&
-             person.email.toLowerCase() === auth.currentUser.email.toLoweCase();
-
-          return !sameUid && !sameEmail;
-
-        });
-
-      setPeople(realUsers.length ? realUsers : demoPeople);
-    });
+    );
 
     return () => unsubscribe();
   }, [uid]);
 
+  /* -------------------------------------------------------
+     LOAD MATCH ACTIVITY
+  ------------------------------------------------------- */
+
   useEffect(() => {
-    if (!uid) return;
+    if (!uid) return undefined;
 
-    const activityRef = doc(db, "matchActivity", uid);
+    const activityRef = doc(
+      db,
+      "matchActivity",
+      uid
+    );
 
-    const unsubscribe = onSnapshot(activityRef, async (snap) => {
-      if (snap.exists()) {
-        setActivity({
-          ...defaultActivity(),
-          ...snap.data(),
-        });
-      } else {
-        await setDoc(activityRef, defaultActivity());
+    const unsubscribe = onSnapshot(
+      activityRef,
+      async (snapshot) => {
+        if (snapshot.exists()) {
+          setActivity({
+            ...defaultActivity(),
+            ...snapshot.data(),
+          });
+        } else {
+          await setDoc(
+            activityRef,
+            defaultActivity()
+          );
+        }
+      },
+      (error) => {
+        console.error(
+          "Unable to load Match activity:",
+          error
+        );
       }
-    });
+    );
 
     return () => unsubscribe();
   }, [uid]);
 
-  const updateActivity = async (nextActivity) => {
+  /* -------------------------------------------------------
+     ACTIVITY FUNCTIONS
+  ------------------------------------------------------- */
+
+  const updateActivity = async (
+    nextActivity
+  ) => {
     if (!uid) return;
 
     await setDoc(
@@ -513,28 +1260,48 @@ export default function Match() {
     );
   };
 
-  const createChatWithPerson = async (person) => {
-    if (!uid) return null;
+  const createChatWithPerson = async (
+    person
+  ) => {
+    if (!uid || !person?.uid) {
+      return null;
+    }
 
-    const chatId = [uid, person.uid].sort().join("_");
-    const chatRef = doc(db, "chats", chatId);
-    const snap = await getDoc(chatRef);
+    const chatId = [uid, person.uid]
+      .sort()
+      .join("_");
 
-    if (!snap.exists()) {
+    const chatRef = doc(
+      db,
+      "chats",
+      chatId
+    );
+
+    const chatSnapshot =
+      await getDoc(chatRef);
+
+    if (!chatSnapshot.exists()) {
       await setDoc(chatRef, {
         id: chatId,
         type: "match",
         title: person.name,
         members: [uid, person.uid],
+
         memberNames: {
           [uid]: currentUser.name,
           [person.uid]: person.name,
         },
+
         memberPhotos: {
-          [uid]: currentUser.photoURL || "",
-          [person.uid]: person.photoURL || "",
+          [uid]:
+            currentUser.photoURL || "",
+          [person.uid]:
+            person.photoURL || "",
         },
-        lastMessage: "You matched 💕 Say hi!",
+
+        lastMessage:
+          "You matched 💕 Say hi!",
+
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -543,269 +1310,585 @@ export default function Match() {
     return chatId;
   };
 
-  const openChatWithPerson = async (person) => {
-    const chatId = await createChatWithPerson(person);
-    if (chatId) navigate(`/chat/${chatId}`);
+  const openChatWithPerson = async (
+    person
+  ) => {
+    const chatId =
+      await createChatWithPerson(person);
+
+    if (chatId) {
+      navigate(`/chat/${chatId}`);
+    }
   };
 
-  const markLiked = async (person, type) => {
-    const next = {
+  const markLiked = async (
+    person,
+    type
+  ) => {
+    if (!uid) return;
+
+    const nextActivity = {
       ...activity,
-      liked: activity.liked || [],
-      superLiked: activity.superLiked || [],
-      passed: activity.passed || [],
-      matches: activity.matches || [],
+      liked: [...(activity.liked || [])],
+      superLiked: [
+        ...(activity.superLiked || []),
+      ],
+      passed: [...(activity.passed || [])],
+      matches: [...(activity.matches || [])],
     };
 
-    next.passed = next.passed.filter((id) => id !== person.uid);
+    nextActivity.passed =
+      nextActivity.passed.filter(
+        (personId) =>
+          personId !== person.uid
+      );
 
-    if (type === "like" && !next.liked.includes(person.uid)) {
-      next.liked.push(person.uid);
+    if (
+      type === "like" &&
+      !nextActivity.liked.includes(person.uid)
+    ) {
+      nextActivity.liked.push(person.uid);
     }
 
-    if (type === "superLike" && !next.superLiked.includes(person.uid)) {
-      next.superLiked.push(person.uid);
+    if (
+      type === "superLike" &&
+      !nextActivity.superLiked.includes(
+        person.uid
+      )
+    ) {
+      nextActivity.superLiked.push(
+        person.uid
+      );
     }
 
-    const personActivitySnap = await getDoc(doc(db, "matchActivity", person.uid));
-    const personActivity = personActivitySnap.exists()
-      ? personActivitySnap.data()
-      : defaultActivity();
+    const personActivitySnapshot =
+      await getDoc(
+        doc(
+          db,
+          "matchActivity",
+          person.uid
+        )
+      );
+
+    const personActivity =
+      personActivitySnapshot.exists()
+        ? {
+            ...defaultActivity(),
+            ...personActivitySnapshot.data(),
+          }
+        : defaultActivity();
 
     const theyLikedMe =
       personActivity.liked?.includes(uid) ||
-      personActivity.superLiked?.includes(uid);
+      personActivity.superLiked?.includes(
+        uid
+      );
 
-    if (theyLikedMe && !next.matches.includes(person.uid)) {
-      next.matches.push(person.uid);
+    if (
+      theyLikedMe &&
+      !nextActivity.matches.includes(
+        person.uid
+      )
+    ) {
+      nextActivity.matches.push(
+        person.uid
+      );
 
       await setDoc(
-        doc(db, "matchActivity", person.uid),
+        doc(
+          db,
+          "matchActivity",
+          person.uid
+        ),
         {
-          matches: [...new Set([...(personActivity.matches || []), uid])],
-          updatedAt: serverTimestamp(),
+          matches: [
+            ...new Set([
+              ...(personActivity.matches ||
+                []),
+              uid,
+            ]),
+          ],
+
+          updatedAt:
+            serverTimestamp(),
         },
         { merge: true }
       );
 
       await createChatWithPerson(person);
+
       setNewMatch(person);
     }
 
-    await updateActivity(next);
+    await updateActivity(nextActivity);
   };
 
   const passPerson = async (person) => {
-    const next = {
+    const nextActivity = {
       ...activity,
-      passed: [...new Set([...(activity.passed || []), person.uid])],
-      liked: (activity.liked || []).filter((id) => id !== person.uid),
-      superLiked: (activity.superLiked || []).filter((id) => id !== person.uid),
+
+      passed: [
+        ...new Set([
+          ...(activity.passed || []),
+          person.uid,
+        ]),
+      ],
+
+      liked: (activity.liked || []).filter(
+        (personId) =>
+          personId !== person.uid
+      ),
+
+      superLiked: (
+        activity.superLiked || []
+      ).filter(
+        (personId) =>
+          personId !== person.uid
+      ),
     };
 
-    await updateActivity(next);
+    await updateActivity(nextActivity);
   };
 
   const blockPerson = async (person) => {
-    const confirmed = window.confirm(`Block ${person.name}?`);
+    const confirmed = window.confirm(
+      `Block ${person.name}? They will no longer appear in Match.`
+    );
+
     if (!confirmed) return;
 
-    const next = {
+    const nextActivity = {
       ...activity,
-      blocked: [...new Set([...(activity.blocked || []), person.uid])],
+
+      blocked: [
+        ...new Set([
+          ...(activity.blocked || []),
+          person.uid,
+        ]),
+      ],
+
+      liked: (activity.liked || []).filter(
+        (personId) =>
+          personId !== person.uid
+      ),
+
+      superLiked: (
+        activity.superLiked || []
+      ).filter(
+        (personId) =>
+          personId !== person.uid
+      ),
+
+      matches: (
+        activity.matches || []
+      ).filter(
+        (personId) =>
+          personId !== person.uid
+      ),
     };
 
-    await updateActivity(next);
+    await updateActivity(nextActivity);
   };
 
   const reportPerson = async (person) => {
-    await addDoc(collection(db, "reports"), {
-      type: "user",
-      reportedUserId: person.uid,
-      reportedUserName: person.name,
-      reporterId: uid,
-      createdAt: serverTimestamp(),
-      status: "pending",
-    });
+    if (!uid) return;
 
-    const next = {
+    const confirmed = window.confirm(
+      `Report ${person.name}'s profile?`
+    );
+
+    if (!confirmed) return;
+
+    await addDoc(
+      collection(db, "reports"),
+      {
+        type: "user",
+        reportedUserId: person.uid,
+        reportedUserName: person.name,
+        reporterId: uid,
+        createdAt: serverTimestamp(),
+        status: "pending",
+      }
+    );
+
+    const nextActivity = {
       ...activity,
-      reported: [...new Set([...(activity.reported || []), person.uid])],
+
+      reported: [
+        ...new Set([
+          ...(activity.reported || []),
+          person.uid,
+        ]),
+      ],
     };
 
-    await updateActivity(next);
-    alert("Profile reported. Thank you for helping keep Limi safe.");
+    await updateActivity(nextActivity);
+
+    window.alert(
+      "Profile reported. Thank you for helping keep Limi safe."
+    );
   };
 
-  const cityPeople = useMemo(() => {
-    const currentCity = normalizeCity(currentUser.city);
+  /* -------------------------------------------------------
+     FILTER USERS BY ACTUAL MILE DISTANCE
+  ------------------------------------------------------- */
 
-    return people.filter((person) => {
-      if ((activity.blocked || []).includes(person.uid)) return false;
+  const nearbyPeople = useMemo(() => {
+    if (!currentUser.location) {
+      return [];
+    }
 
-      if (areaEnabled && normalizeCity(person.city) !== currentCity) {
-        return false;
-      }
+    return people
+      .map((person) => {
+        const distanceMiles =
+          calculateDistanceMiles(
+            currentUser.location,
+            person.location
+          );
 
-      if (interestFilter !== "All") {
-        return (person.interests || []).includes(interestFilter);
-      }
+        return {
+          ...person,
+          distanceMiles,
+        };
+      })
+      .filter((person) => {
+        if (
+          (activity.blocked || []).includes(
+            person.uid
+          )
+        ) {
+          return false;
+        }
 
-      return true;
-    });
-  }, [people, currentUser.city, areaEnabled, interestFilter, activity.blocked]);
+        if (
+          (activity.reported || []).includes(
+            person.uid
+          )
+        ) {
+          return false;
+        }
+
+        if (person.distanceMiles === null) {
+          return false;
+        }
+
+        return (
+          person.distanceMiles <=
+          currentUser.distancePreference
+        );
+      })
+      .sort((firstPerson, secondPerson) => {
+        const sharedDifference =
+          countSharedItems(
+            currentUser,
+            secondPerson
+          ) -
+          countSharedItems(
+            currentUser,
+            firstPerson
+          );
+
+        if (sharedDifference !== 0) {
+          return sharedDifference;
+        }
+
+        return (
+          firstPerson.distanceMiles -
+          secondPerson.distanceMiles
+        );
+      });
+  }, [
+    people,
+    currentUser,
+    activity.blocked,
+    activity.reported,
+  ]);
 
   const discoverPeople = useMemo(() => {
-    return cityPeople.filter(
+    return nearbyPeople.filter(
       (person) =>
-        !(activity.liked || []).includes(person.uid) &&
-        !(activity.superLiked || []).includes(person.uid) &&
-        !(activity.passed || []).includes(person.uid) &&
-        !(activity.matches || []).includes(person.uid)
+        !(activity.liked || []).includes(
+          person.uid
+        ) &&
+        !(
+          activity.superLiked || []
+        ).includes(person.uid) &&
+        !(activity.passed || []).includes(
+          person.uid
+        ) &&
+        !(activity.matches || []).includes(
+          person.uid
+        )
     );
-  }, [cityPeople, activity]);
+  }, [nearbyPeople, activity]);
 
-  const likedPeople = people.filter((p) => (activity.liked || []).includes(p.uid));
-  const superLikedPeople = people.filter((p) =>
-    (activity.superLiked || []).includes(p.uid)
-  );
-  const passedPeople = people.filter((p) => (activity.passed || []).includes(p.uid));
-  const matchedPeople = people.filter((p) => (activity.matches || []).includes(p.uid));
+  const peopleWithDistance =
+    useMemo(() => {
+      if (!currentUser.location) {
+        return people.map((person) => ({
+          ...person,
+          distanceMiles: null,
+        }));
+      }
+
+      return people.map((person) => ({
+        ...person,
+
+        distanceMiles:
+          calculateDistanceMiles(
+            currentUser.location,
+            person.location
+          ),
+      }));
+    }, [people, currentUser.location]);
+
+  const likedPeople =
+    peopleWithDistance.filter((person) =>
+      (activity.liked || []).includes(
+        person.uid
+      )
+    );
+
+  const superLikedPeople =
+    peopleWithDistance.filter((person) =>
+      (
+        activity.superLiked || []
+      ).includes(person.uid)
+    );
+
+  const passedPeople =
+    peopleWithDistance.filter((person) =>
+      (activity.passed || []).includes(
+        person.uid
+      )
+    );
+
+  const matchedPeople =
+    peopleWithDistance.filter((person) =>
+      (activity.matches || []).includes(
+        person.uid
+      )
+    );
 
   const currentCard = discoverPeople[0];
+
+  const loading =
+    loadingUser || loadingPeople;
+
+  /* -------------------------------------------------------
+     PAGE
+  ------------------------------------------------------- */
 
   return (
     <div className="min-h-screen bg-[#fff6fa] pb-28">
       <div className="mx-auto max-w-md px-4 pt-5">
         <div className="rounded-[38px] bg-[#fffdfd] p-5 shadow-[0_10px_35px_rgba(244,168,194,0.14)]">
-          <div className="flex items-start justify-between">
-            <div>
-              <h1
-                className="text-[58px] leading-none tracking-[-0.06em] text-[#eb6aaa]"
-                style={{ fontWeight: 1000 }}
-              >
-                Match
-              </h1>
-
-              <p className="mt-2 text-lg font-bold text-[#80636f]">
-                find your new friends 💕
-              </p>
+          <div className="text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#f5a8bf] via-[#ef77ae] to-[#f78e9b] text-white shadow-[0_10px_24px_rgba(237,102,157,0.22)]">
+              <Sparkles size={24} />
             </div>
 
-            <button
-              onClick={() => setAreaEnabled((prev) => !prev)}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-[#f5a8bf] via-[#ef77ae] to-[#d94b93] text-white shadow-[0_12px_24px_rgba(237,102,157,0.25)]"
+            <h1
+              className="mt-4 text-[40px] leading-none tracking-[-0.05em] text-[#eb6aaa]"
+              style={{ fontWeight: 1000 }}
             >
-              <SlidersHorizontal size={25} />
-            </button>
-          </div>
+              Find your people
+            </h1>
 
-          <div className="mt-6 rounded-[28px] border border-[#f1d8e3] bg-white/80 p-5">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-[#80636f]">
-                  Matching Area
-                </p>
-
-                <p className="mt-2 text-2xl font-black text-[#2b1d28]">
-                  {currentUser.city || "Your city"}
-                </p>
-              </div>
-
-              <button
-                onClick={() => setAreaEnabled((prev) => !prev)}
-                className={`relative h-9 w-16 rounded-full transition ${
-                  areaEnabled ? "bg-[#d94b93]" : "bg-gray-300"
-                }`}
-              >
-                <span
-                  className={`absolute top-1 h-7 w-7 rounded-full bg-white transition ${
-                    areaEnabled ? "right-1" : "left-1"
-                  }`}
-                />
-              </button>
-            </div>
-
-            <p className="mt-4 text-sm font-semibold leading-6 text-[#80636f]">
-              Uses the city saved in your profile so you can meet people nearby.
+            <p className="mx-auto mt-3 max-w-[310px] text-sm font-semibold leading-6 text-[#80636f]">
+              Discover nearby people who share
+              your interests, social energy,
+              and vibe.
             </p>
           </div>
 
-          <div className="mt-5 flex gap-3 overflow-x-auto pb-1">
-            {interestFilters.map((filter) => (
-              <ActionPill
-                key={filter}
-                active={interestFilter === filter}
-                onClick={() => setInterestFilter(filter)}
-              >
-                {filter}
-              </ActionPill>
-            ))}
+          <div className="mt-6 rounded-[28px] border border-[#f1d8e3] bg-white/80 p-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#ffe3ed] text-[#e85da2]">
+                <MapPin size={21} />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-[#a66c86]">
+                  Discovering near
+                </p>
+
+                <p className="mt-1 truncate text-xl font-black text-[#2b1d28]">
+                  {currentUser.city ||
+                    "Your location"}
+                </p>
+              </div>
+
+              <div className="shrink-0 rounded-full bg-[#eb6aaa] px-4 py-2 text-sm font-black text-white">
+                {currentUser.distancePreference} mi
+              </div>
+            </div>
+
+            <p className="mt-4 text-sm font-semibold leading-6 text-[#80636f]">
+              Showing profiles within{" "}
+              {currentUser.distancePreference}{" "}
+              miles. Change your distance
+              anytime from Edit Profile.
+            </p>
           </div>
 
           <div className="mt-5 grid grid-cols-4 gap-3">
             <button
-              onClick={() => setLikedOpen(true)}
+              type="button"
+              onClick={() =>
+                setLikedOpen(true)
+              }
               className="rounded-2xl bg-[#fff2f7] px-2 py-4 text-center"
             >
-              <Heart size={20} className="mx-auto text-[#ec64a8]" />
+              <Heart
+                size={20}
+                className="mx-auto text-[#ec64a8]"
+              />
+
               <p className="mt-1 text-[11px] font-black text-[#80636f]">
                 Liked {likedPeople.length}
               </p>
             </button>
 
             <button
-              onClick={() => setSuperLikedOpen(true)}
+              type="button"
+              onClick={() =>
+                setSuperLikedOpen(true)
+              }
               className="rounded-2xl bg-[#fff2f7] px-2 py-4 text-center"
             >
-              <Star size={20} className="mx-auto text-[#ec64a8]" />
+              <Star
+                size={20}
+                className="mx-auto text-[#ec64a8]"
+              />
+
               <p className="mt-1 text-[11px] font-black text-[#80636f]">
-                Super {superLikedPeople.length}
+                Super{" "}
+                {superLikedPeople.length}
               </p>
             </button>
 
             <button
-              onClick={() => setPassedOpen(true)}
+              type="button"
+              onClick={() =>
+                setPassedOpen(true)
+              }
               className="rounded-2xl bg-[#fff2f7] px-2 py-4 text-center"
             >
-              <RotateCcw size={20} className="mx-auto text-[#ec64a8]" />
+              <RotateCcw
+                size={20}
+                className="mx-auto text-[#ec64a8]"
+              />
+
               <p className="mt-1 text-[11px] font-black text-[#80636f]">
                 Passed {passedPeople.length}
               </p>
             </button>
 
             <button
-              onClick={() => setMatchesOpen(true)}
+              type="button"
+              onClick={() =>
+                setMatchesOpen(true)
+              }
               className="rounded-2xl bg-[#fff2f7] px-2 py-4 text-center"
             >
-              <MessageCircle size={20} className="mx-auto text-[#ec64a8]" />
+              <MessageCircle
+                size={20}
+                className="mx-auto text-[#ec64a8]"
+              />
+
               <p className="mt-1 text-[11px] font-black text-[#80636f]">
-                Matches {matchedPeople.length}
+                Matches{" "}
+                {matchedPeople.length}
               </p>
             </button>
           </div>
         </div>
 
         <div className="mt-6">
-          {currentCard ? (
+          {loading ? (
+            <div className="rounded-[36px] bg-white p-10 text-center shadow-sm">
+              <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-[#f7c5d7] border-t-[#eb6aaa]" />
+
+              <p className="mt-4 font-black text-[#80636f]">
+                Finding people near you...
+              </p>
+            </div>
+          ) : !currentUser.location ? (
+            <div className="rounded-[36px] bg-white p-9 text-center shadow-sm">
+              <MapPin
+                size={44}
+                className="mx-auto mb-4 text-[#f089b0]"
+              />
+
+              <h3 className="text-2xl font-black text-[#e85da2]">
+                Location needed
+              </h3>
+
+              <p className="mt-3 text-sm font-semibold leading-6 text-[#80636f]">
+                Your profile has a city, but
+                it does not have saved
+                coordinates yet. Update your
+                location in Edit Profile so
+                Limi can calculate the real
+                distance between users.
+              </p>
+
+              <button
+                type="button"
+                onClick={() =>
+                  navigate("/profile")
+                }
+                className="mt-6 w-full rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-4 font-black text-white"
+              >
+                Go to Profile
+              </button>
+            </div>
+          ) : currentCard ? (
             <PersonCard
               person={currentCard}
-              onLike={(person) => markLiked(person, "like")}
-              onSuperLike={(person) => markLiked(person, "superLike")}
+              currentUser={currentUser}
+              onLike={(person) =>
+                markLiked(person, "like")
+              }
+              onSuperLike={(person) =>
+                markLiked(
+                  person,
+                  "superLike"
+                )
+              }
               onPass={passPerson}
               onReport={reportPerson}
               onBlock={blockPerson}
             />
           ) : (
             <div className="rounded-[36px] bg-white p-10 text-center shadow-sm">
-              <Sparkles size={44} className="mx-auto mb-4 text-[#f089b0]" />
+              <Users
+                size={44}
+                className="mx-auto mb-4 text-[#f089b0]"
+              />
 
               <h3 className="text-2xl font-black text-[#e85da2]">
-                No more profiles
+                No more profiles nearby
               </h3>
 
-              <p className="mt-2 text-sm font-semibold leading-6 text-[#80636f]">
-                Try another interest filter or turn off city-only matching 💕
+              <p className="mt-3 text-sm font-semibold leading-6 text-[#80636f]">
+                There are currently no new
+                profiles within{" "}
+                {
+                  currentUser.distancePreference
+                }{" "}
+                miles of{" "}
+                {currentUser.city ||
+                  "your location"}
+                .
+              </p>
+
+              <p className="mt-3 text-sm font-semibold leading-6 text-[#a1788b]">
+                Profiles without saved
+                coordinates are not displayed
+                because their distance cannot
+                be verified.
               </p>
             </div>
           )}
@@ -814,7 +1897,9 @@ export default function Match() {
 
       <PersonListModal
         open={likedOpen}
-        onClose={() => setLikedOpen(false)}
+        onClose={() =>
+          setLikedOpen(false)
+        }
         title="Liked"
         people={likedPeople}
         emptyText="No liked profiles yet."
@@ -822,7 +1907,9 @@ export default function Match() {
 
       <PersonListModal
         open={superLikedOpen}
-        onClose={() => setSuperLikedOpen(false)}
+        onClose={() =>
+          setSuperLikedOpen(false)
+        }
         title="Super Liked"
         people={superLikedPeople}
         emptyText="No super likes yet."
@@ -830,7 +1917,9 @@ export default function Match() {
 
       <PersonListModal
         open={passedOpen}
-        onClose={() => setPassedOpen(false)}
+        onClose={() =>
+          setPassedOpen(false)
+        }
         title="Passed"
         people={passedPeople}
         emptyText="No passed profiles yet."
@@ -838,7 +1927,9 @@ export default function Match() {
 
       <PersonListModal
         open={matchesOpen}
-        onClose={() => setMatchesOpen(false)}
+        onClose={() =>
+          setMatchesOpen(false)
+        }
         title="Matches"
         people={matchedPeople}
         emptyText="No matches yet. Keep discovering 💕"
@@ -847,12 +1938,16 @@ export default function Match() {
       />
 
       <MatchModal
-        open={!!newMatch}
+        open={Boolean(newMatch)}
         person={newMatch}
         onMessage={() => {
-          if (newMatch) openChatWithPerson(newMatch);
+          if (newMatch) {
+            openChatWithPerson(newMatch);
+          }
         }}
-        onKeepMatching={() => setNewMatch(null)}
+        onKeepMatching={() =>
+          setNewMatch(null)
+        }
       />
     </div>
   );

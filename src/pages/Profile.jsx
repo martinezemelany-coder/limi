@@ -131,6 +131,8 @@ function getDefaultProfile() {
     socialEnergy: "",
     vibes: [],
     distanceMiles: 25,
+    distancePreference: 25,
+    radiusMiles: 25, 
     photoURL: user?.photoURL || "",
     profileImage: "",
     verified: false,
@@ -780,7 +782,13 @@ export default function Profile() {
             ...data,
             uid: profileUid,
             email: data.email || "",
-            distanceMiles: Number(data.distanceMiles || 25),
+            distanceMiles: Number(
+              data.distancePreference ??
+                data.radiusMiles ??
+                data.distanceMiles ??
+                25
+            ),
+            interests: getArrayValue(data.interests, data.interest),
             friendActivities: getArrayValue(
               data.friendActivities,
               data.activities,
@@ -856,30 +864,53 @@ export default function Profile() {
   }, [profileUid, profile.email, profile.name]);
 
   const saveProfile = async (newProfile) => {
-    if (!user || !isOwnProfile) return;
+  if (!user || !isOwnProfile) return;
 
-    const cleanProfile = {
-      ...newProfile,
-      uid: user.uid,
-      email: user.email || "",
-      age: newProfile.age || "",
-      city: newProfile.city || "",
-      interests: newProfile.interests || [],
-      friendActivities: newProfile.friendActivities || [],
-      socialEnergy: newProfile.socialEnergy || "",
-      vibes: newProfile.vibes || [],
-      distanceMiles: Number(newProfile.distanceMiles || 25),
-      updatedAt: serverTimestamp(),
-    };
+  const updatedDistance = Number(
+    newProfile.distanceMiles ??
+      newProfile.distancePreference ??
+      newProfile.radiusMiles ??
+      25
+  );
 
-    delete cleanProfile.activities;
-    delete cleanProfile.vibe;
-    delete cleanProfile.friendOptions;
-    delete cleanProfile.whatDoYouDoWithFriends;
+  const cleanProfile = {
+    ...newProfile,
+    uid: user.uid,
+    email: user.email || "",
+    age: newProfile.age || "",
+    city: newProfile.city || "",
+    interests: newProfile.interests || [],
+    friendActivities: newProfile.friendActivities || [],
+    socialEnergy: newProfile.socialEnergy || "",
+    vibes: newProfile.vibes || [],
 
-    await setDoc(doc(db, "users", user.uid), cleanProfile, { merge: true });
-    setProfile((prev) => ({ ...prev, ...cleanProfile }));
-  };
+    /*
+      Keep all existing pages synchronized.
+      distancePreference is the main field used by Match.
+    */
+    distanceMiles: updatedDistance,
+    distancePreference: updatedDistance,
+    radiusMiles: updatedDistance,
+
+    updatedAt: serverTimestamp(),
+  };
+
+  delete cleanProfile.activities;
+  delete cleanProfile.vibe;
+  delete cleanProfile.friendOptions;
+  delete cleanProfile.whatDoYouDoWithFriends;
+
+  await setDoc(
+    doc(db, "users", user.uid),
+    cleanProfile,
+    { merge: true }
+  );
+
+  setProfile((previousProfile) => ({
+    ...previousProfile,
+    ...cleanProfile,
+  }));
+};
 
   const uploadProfilePhoto = async (file) => {
     if (!file || !user || !isOwnProfile) return;
