@@ -12,11 +12,16 @@ import {
   Sparkles,
   RotateCcw,
   Users,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 import { auth, db } from "../lib/firebase";
+
 import {
   addDoc,
+  arrayRemove,
+  arrayUnion,
   collection,
   doc,
   getDoc,
@@ -27,19 +32,25 @@ import {
 } from "firebase/firestore";
 
 /* -------------------------------------------------------
-   GENERAL HELPERS
+   DEFAULT MATCH ACTIVITY
 ------------------------------------------------------- */
 
 function defaultActivity() {
   return {
     liked: [],
     superLiked: [],
+    likedBy: [],
+    superLikedBy: [],
     passed: [],
     matches: [],
     blocked: [],
     reported: [],
   };
 }
+
+/* -------------------------------------------------------
+   PROFILE HELPERS
+------------------------------------------------------- */
 
 function getAuthProfile() {
   const user = auth.currentUser;
@@ -118,7 +129,9 @@ function getProfilePhotos(data = {}) {
 
   const savedPhotos = Array.isArray(data.profilePhotos)
     ? data.profilePhotos.filter(
-        (photo) => typeof photo === "string" && photo.trim()
+        (photo) =>
+          typeof photo === "string" &&
+          photo.trim()
       )
     : [];
 
@@ -126,7 +139,10 @@ function getProfilePhotos(data = {}) {
     return mainPhoto ? [mainPhoto] : [];
   }
 
-  if (mainPhoto && !savedPhotos.includes(mainPhoto)) {
+  if (
+    mainPhoto &&
+    !savedPhotos.includes(mainPhoto)
+  ) {
     return [mainPhoto, ...savedPhotos].slice(0, 3);
   }
 
@@ -182,13 +198,28 @@ function getVibes(data = {}) {
 }
 
 function getDistancePreference(data = {}) {
-  const distance = Number(data.distancePreference);
+  const rawDistance =
+    data.distancePreference ??
+    data.radiusMiles ??
+    data.distanceMiles ??
+    data.matchDistance ??
+    data.maxDistance ??
+    data.discoveryDistance ??
+    data.radius ??
+    data.location?.distancePreference ??
+    data.location?.radiusMiles ??
+    25;
 
-  if (!Number.isFinite(distance) || distance < 5) {
-    return 25;
-  }
+  const distance = Number(rawDistance);
 
-  return Math.min(distance, 100);
+  if (
+    !Number.isFinite(distance) ||
+    distance < 5
+  ) {
+    return 25;
+  }
+
+  return Math.min(distance, 100);
 }
 
 /* -------------------------------------------------------
@@ -231,7 +262,10 @@ function getCoordinates(data = {}) {
         location._long
     );
 
-    if (latitude !== null && longitude !== null) {
+    if (
+      latitude !== null &&
+      longitude !== null
+    ) {
       return {
         latitude,
         longitude,
@@ -252,7 +286,10 @@ function getCoordinates(data = {}) {
       data.locationLongitude
   );
 
-  if (latitude !== null && longitude !== null) {
+  if (
+    latitude !== null &&
+    longitude !== null
+  ) {
     return {
       latitude,
       longitude,
@@ -266,20 +303,27 @@ function degreesToRadians(degrees) {
   return degrees * (Math.PI / 180);
 }
 
-function calculateDistanceMiles(firstLocation, secondLocation) {
+function calculateDistanceMiles(
+  firstLocation,
+  secondLocation
+) {
   if (!firstLocation || !secondLocation) {
     return null;
   }
 
   const earthRadiusMiles = 3958.8;
 
-  const latitudeDifference = degreesToRadians(
-    secondLocation.latitude - firstLocation.latitude
-  );
+  const latitudeDifference =
+    degreesToRadians(
+      secondLocation.latitude -
+        firstLocation.latitude
+    );
 
-  const longitudeDifference = degreesToRadians(
-    secondLocation.longitude - firstLocation.longitude
-  );
+  const longitudeDifference =
+    degreesToRadians(
+      secondLocation.longitude -
+        firstLocation.longitude
+    );
 
   const firstLatitude = degreesToRadians(
     firstLocation.latitude
@@ -296,27 +340,49 @@ function calculateDistanceMiles(firstLocation, secondLocation) {
       Math.sin(longitudeDifference / 2) ** 2;
 
   const c =
-    2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    2 *
+    Math.atan2(
+      Math.sqrt(a),
+      Math.sqrt(1 - a)
+    );
 
   return earthRadiusMiles * c;
 }
 
 /* -------------------------------------------------------
-   SHARED TRAIT HELPERS
+   COMPATIBILITY HELPERS
 ------------------------------------------------------- */
 
-function valuesMatch(firstValue, secondValue) {
-  return normalizeText(firstValue) === normalizeText(secondValue);
+function valuesMatch(
+  firstValue,
+  secondValue
+) {
+  return (
+    normalizeText(firstValue) ===
+    normalizeText(secondValue)
+  );
 }
 
-function includesNormalized(list = [], value = "") {
-  return list.some((item) => valuesMatch(item, value));
+function includesNormalized(
+  list = [],
+  value = ""
+) {
+  return list.some((item) =>
+    valuesMatch(item, value)
+  );
 }
 
-function countSharedItems(currentUser, otherUser) {
-  const sharedInterests = (otherUser.interests || []).filter(
-    (item) =>
-      includesNormalized(currentUser.interests || [], item)
+function getSharedProfileData(
+  currentUser,
+  otherUser
+) {
+  const sharedInterests = (
+    otherUser.interests || []
+  ).filter((item) =>
+    includesNormalized(
+      currentUser.interests || [],
+      item
+    )
   );
 
   const sharedActivities = (
@@ -328,32 +394,96 @@ function countSharedItems(currentUser, otherUser) {
     )
   );
 
-  const sharedVibes = (otherUser.vibes || []).filter(
-    (item) =>
-      includesNormalized(currentUser.vibes || [], item)
+  const sharedVibes = (
+    otherUser.vibes || []
+  ).filter((item) =>
+    includesNormalized(
+      currentUser.vibes || [],
+      item
+    )
   );
 
-  const sameSocialEnergy =
+  const sameSocialEnergy = Boolean(
     currentUser.socialEnergy &&
-    otherUser.socialEnergy &&
-    valuesMatch(
-      currentUser.socialEnergy,
-      otherUser.socialEnergy
-    );
+      otherUser.socialEnergy &&
+      valuesMatch(
+        currentUser.socialEnergy,
+        otherUser.socialEnergy
+      )
+  );
+
+  return {
+    sharedInterests,
+    sharedActivities,
+    sharedVibes,
+    sameSocialEnergy,
+  };
+}
+
+function countSharedItems(
+  currentUser,
+  otherUser
+) {
+  const shared = getSharedProfileData(
+    currentUser,
+    otherUser
+  );
 
   return (
-    sharedInterests.length +
-    sharedActivities.length +
-    sharedVibes.length +
-    (sameSocialEnergy ? 1 : 0)
+    shared.sharedInterests.length +
+    shared.sharedActivities.length +
+    shared.sharedVibes.length +
+    (shared.sameSocialEnergy ? 1 : 0)
+  );
+}
+
+function calculateCompatibility(
+  currentUser,
+  otherUser
+) {
+  const sharedCount = countSharedItems(
+    currentUser,
+    otherUser
+  );
+
+  const otherUserAnswerCount =
+    (otherUser.interests || []).length +
+    (otherUser.friendActivities || []).length +
+    (otherUser.vibes || []).length +
+    (otherUser.socialEnergy ? 1 : 0);
+
+  const currentUserAnswerCount =
+    (currentUser.interests || []).length +
+    (currentUser.friendActivities || []).length +
+    (currentUser.vibes || []).length +
+    (currentUser.socialEnergy ? 1 : 0);
+
+  const possibleMatches = Math.max(
+    1,
+    Math.min(
+      otherUserAnswerCount,
+      currentUserAnswerCount
+    )
+  );
+
+  const percentage = Math.round(
+    (sharedCount / possibleMatches) * 100
+  );
+
+  return Math.max(
+    0,
+    Math.min(100, percentage)
   );
 }
 
 /* -------------------------------------------------------
-   PROFILE AVATAR
+   SMALL COMPONENTS
 ------------------------------------------------------- */
 
-function ProfileAvatar({ person, size = "large" }) {
+function ProfileAvatar({
+  person,
+  size = "large",
+}) {
   const classes =
     size === "small"
       ? "h-12 w-12 rounded-2xl text-lg"
@@ -373,14 +503,12 @@ function ProfileAvatar({ person, size = "large" }) {
     <div
       className={`${classes} flex items-center justify-center bg-gradient-to-br from-[#f5a2bc] via-[#ef87ad] to-[#d94b93] font-black text-white`}
     >
-      {(person.name || "L").charAt(0).toUpperCase()}
+      {(person.name || "L")
+        .charAt(0)
+        .toUpperCase()}
     </div>
   );
 }
-
-/* -------------------------------------------------------
-   MODAL SHELL
-------------------------------------------------------- */
 
 function ModalShell({
   open,
@@ -392,7 +520,7 @@ function ModalShell({
 
   return (
     <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/40 px-3 sm:items-center">
-      <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-[34px] bg-[#fff8fb] p-5 shadow-2xl sm:rounded-[34px]">
+      <div className="max-h-[94vh] w-full max-w-md overflow-y-auto rounded-t-[34px] bg-[#fff8fb] p-5 shadow-2xl sm:rounded-[34px]">
         <div className="mb-4 flex items-center justify-between">
           <h2
             className="text-3xl leading-none tracking-[-0.05em] text-[#ec64a8]"
@@ -417,7 +545,7 @@ function ModalShell({
 }
 
 /* -------------------------------------------------------
-   NEW MATCH MODAL
+   MATCH CREATED MODAL
 ------------------------------------------------------- */
 
 function MatchModal({
@@ -429,10 +557,13 @@ function MatchModal({
   if (!open || !person) return null;
 
   return (
-    <div className="fixed inset-0 z-[140] flex items-end justify-center bg-black/50 px-3 sm:items-center">
+    <div className="fixed inset-0 z-[160] flex items-end justify-center bg-black/50 px-3 sm:items-center">
       <div className="w-full max-w-md rounded-t-[38px] bg-[#fff8fb] p-6 text-center shadow-2xl sm:rounded-[38px]">
         <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-[#f5a8bf] via-[#ef77ae] to-[#f97d8b] text-white shadow-[0_12px_24px_rgba(237,102,157,0.3)]">
-          <Heart size={38} fill="currentColor" />
+          <Heart
+            size={38}
+            fill="currentColor"
+          />
         </div>
 
         <h2
@@ -443,7 +574,8 @@ function MatchModal({
         </h2>
 
         <p className="mt-3 text-base font-bold text-[#80636f]">
-          You and {person.name} liked each other 💕
+          You and {person.name} liked each
+          other 💕
         </p>
 
         <div className="mt-6 rounded-[30px] bg-white p-5 shadow-sm">
@@ -453,7 +585,9 @@ function MatchModal({
 
           <h3 className="mt-3 text-2xl font-black text-[#1f1720]">
             {person.name}
-            {person.age ? `, ${person.age}` : ""}
+            {person.age
+              ? `, ${person.age}`
+              : ""}
           </h3>
 
           <p className="mt-1 flex items-center justify-center gap-1 text-sm font-bold text-[#96607f]">
@@ -461,8 +595,11 @@ function MatchModal({
 
             {person.distanceMiles !== null &&
             person.distanceMiles !== undefined
-              ? `${Math.round(person.distanceMiles)} miles away`
-              : person.city || "Location unavailable"}
+              ? `${Math.round(
+                  person.distanceMiles
+                )} miles away`
+              : person.city ||
+                "Location unavailable"}
           </p>
 
           {person.bio && (
@@ -496,10 +633,13 @@ function MatchModal({
 }
 
 /* -------------------------------------------------------
-   TRAIT SECTION
+   PROFILE TRAITS
 ------------------------------------------------------- */
 
-function TraitTag({ label, isShared }) {
+function TraitTag({
+  label,
+  isShared,
+}) {
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full border px-3 py-2 text-xs font-black transition ${
@@ -509,7 +649,10 @@ function TraitTag({ label, isShared }) {
       }`}
     >
       {isShared && (
-        <Heart size={12} fill="currentColor" />
+        <Heart
+          size={12}
+          fill="currentColor"
+        />
       )}
 
       {label}
@@ -562,14 +705,17 @@ function TraitSection({
 }
 
 /* -------------------------------------------------------
-   PROFILE CARD
+   MAIN PERSON CARD
 ------------------------------------------------------- */
 
 function PersonCard({
   person,
   currentUser,
+  mode = "discover",
+  superLikedYou = false,
   onLike,
   onSuperLike,
+  onLikeBack,
   onPass,
   onReport,
   onBlock,
@@ -581,10 +727,13 @@ function PersonCard({
         ? [person.photoURL]
         : [];
 
-  const [activePhotoIndex, setActivePhotoIndex] =
-    useState(0);
+  const [
+    activePhotoIndex,
+    setActivePhotoIndex,
+  ] = useState(0);
 
-  const [touchStartX, setTouchStartX] = useState(null);
+  const [touchStartX, setTouchStartX] =
+    useState(null);
 
   useEffect(() => {
     setActivePhotoIndex(0);
@@ -595,6 +744,12 @@ function PersonCard({
     currentUser,
     person
   );
+
+  const compatibility =
+    calculateCompatibility(
+      currentUser,
+      person
+    );
 
   const sharedSocialEnergy =
     currentUser.socialEnergy &&
@@ -621,7 +776,8 @@ function PersonCard({
     if (profilePhotos.length <= 1) return;
 
     setActivePhotoIndex((currentIndex) =>
-      currentIndex === profilePhotos.length - 1
+      currentIndex ===
+      profilePhotos.length - 1
         ? 0
         : currentIndex + 1
     );
@@ -661,7 +817,8 @@ function PersonCard({
       event.changedTouches[0]?.clientX ??
       touchStartX;
 
-    const swipeDistance = endingX - touchStartX;
+    const swipeDistance =
+      endingX - touchStartX;
 
     if (Math.abs(swipeDistance) >= 45) {
       if (swipeDistance < 0) {
@@ -686,7 +843,9 @@ function PersonCard({
           <img
             key={currentPhoto}
             src={currentPhoto}
-            alt={`${person.name} profile ${activePhotoIndex + 1}`}
+            alt={`${person.name} profile ${
+              activePhotoIndex + 1
+            }`}
             draggable="false"
             className="h-full w-full object-cover"
           />
@@ -707,21 +866,25 @@ function PersonCard({
               event.stopPropagation()
             }
           >
-            {profilePhotos.map((photo, index) => (
-              <button
-                key={`${photo}-${index}`}
-                type="button"
-                aria-label={`View photo ${index + 1}`}
-                onClick={() =>
-                  setActivePhotoIndex(index)
-                }
-                className={`h-2 rounded-full shadow-sm transition-all ${
-                  activePhotoIndex === index
-                    ? "w-7 bg-white"
-                    : "w-2 bg-white/55"
-                }`}
-              />
-            ))}
+            {profilePhotos.map(
+              (photo, index) => (
+                <button
+                  key={`${photo}-${index}`}
+                  type="button"
+                  aria-label={`View photo ${
+                    index + 1
+                  }`}
+                  onClick={() =>
+                    setActivePhotoIndex(index)
+                  }
+                  className={`h-2 rounded-full shadow-sm transition-all ${
+                    activePhotoIndex === index
+                      ? "w-7 bg-white"
+                      : "w-2 bg-white/55"
+                  }`}
+                />
+              )
+            )}
           </div>
         )}
 
@@ -751,17 +914,38 @@ function PersonCard({
         </div>
 
         <div className="pointer-events-none absolute bottom-5 left-5 right-5 text-white">
-          {sharedCount > 0 && (
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[#f06fa6]/90 px-4 py-2 text-xs font-black shadow-lg backdrop-blur">
-              <Sparkles size={14} />
+          {mode === "likedYou" &&
+            superLikedYou && (
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#f7b5ca] to-[#ec64a8] px-4 py-2 text-xs font-black text-white shadow-lg">
+                <Star
+                  size={14}
+                  fill="currentColor"
+                />
+                Super liked you
+              </div>
+            )}
 
-              {sharedCount}{" "}
-              {sharedCount === 1
-                ? "thing"
-                : "things"}{" "}
-              in common
+          <div className="mb-3 flex flex-wrap gap-2">
+            <div className="inline-flex items-center gap-2 rounded-full bg-[#f06fa6]/90 px-4 py-2 text-xs font-black shadow-lg backdrop-blur">
+              <Sparkles size={14} />
+              {compatibility}% compatible
             </div>
-          )}
+
+            {sharedCount > 0 && (
+              <div className="inline-flex items-center gap-2 rounded-full bg-black/25 px-4 py-2 text-xs font-black backdrop-blur">
+                <Heart
+                  size={14}
+                  fill="currentColor"
+                />
+
+                {sharedCount}{" "}
+                {sharedCount === 1
+                  ? "thing"
+                  : "things"}{" "}
+                in common
+              </div>
+            )}
+          </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-4xl font-black tracking-[-0.05em]">
@@ -784,7 +968,8 @@ function PersonCard({
               <MapPin size={16} />
 
               {person.distanceMiles !== null &&
-              person.distanceMiles !== undefined
+              person.distanceMiles !==
+                undefined
                 ? `${Math.round(
                     person.distanceMiles
                   )} miles away`
@@ -833,7 +1018,9 @@ function PersonCard({
             <div className="mt-3">
               <TraitTag
                 label={person.socialEnergy}
-                isShared={sharedSocialEnergy}
+                isShared={
+                  sharedSocialEnergy
+                }
               />
             </div>
           ) : (
@@ -860,35 +1047,195 @@ function PersonCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 border-t border-[#f8e5ed] p-5">
-        <button
-          type="button"
-          onClick={() => onPass(person)}
-          aria-label={`Pass on ${person.name}`}
-          className="flex items-center justify-center rounded-full border border-[#f1d8e3] bg-white py-4 text-lg font-black text-[#80636f]"
-        >
-          <X size={23} />
-        </button>
+      {mode === "likedYou" ? (
+        <div className="grid grid-cols-2 gap-3 border-t border-[#f8e5ed] p-5">
+          <button
+            type="button"
+            onClick={() => onPass(person)}
+            className="flex items-center justify-center gap-2 rounded-full border border-[#f1d8e3] bg-white py-4 text-sm font-black text-[#80636f]"
+          >
+            <X size={21} />
+            Pass
+          </button>
 
-        <button
-          type="button"
-          onClick={() => onSuperLike(person)}
-          aria-label={`Super like ${person.name}`}
-          className="flex items-center justify-center rounded-full bg-gradient-to-r from-[#f4c1d2] to-[#f6a9c3] py-4 text-lg font-black text-white"
-        >
-          <Star size={23} fill="currentColor" />
-        </button>
+          <button
+            type="button"
+            onClick={() =>
+              onLikeBack(person)
+            }
+            className="flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-4 text-sm font-black text-white"
+          >
+            <Heart
+              size={21}
+              fill="currentColor"
+            />
+            Like Back
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-3 border-t border-[#f8e5ed] p-5">
+          <button
+            type="button"
+            onClick={() => onPass(person)}
+            aria-label={`Pass on ${person.name}`}
+            className="flex items-center justify-center rounded-full border border-[#f1d8e3] bg-white py-4 text-lg font-black text-[#80636f]"
+          >
+            <X size={23} />
+          </button>
 
-        <button
-          type="button"
-          onClick={() => onLike(person)}
-          aria-label={`Like ${person.name}`}
-          className="flex items-center justify-center rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-4 text-lg font-black text-white"
-        >
-          <Heart size={23} fill="currentColor" />
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={() =>
+              onSuperLike(person)
+            }
+            aria-label={`Super like ${person.name}`}
+            className="flex items-center justify-center rounded-full bg-gradient-to-r from-[#f4c1d2] to-[#f6a9c3] py-4 text-lg font-black text-white"
+          >
+            <Star
+              size={23}
+              fill="currentColor"
+            />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onLike(person)}
+            aria-label={`Like ${person.name}`}
+            className="flex items-center justify-center rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-4 text-lg font-black text-white"
+          >
+            <Heart
+              size={23}
+              fill="currentColor"
+            />
+          </button>
+        </div>
+      )}
     </div>
+  );
+}
+
+/* -------------------------------------------------------
+   LIKED YOU MODAL
+------------------------------------------------------- */
+
+function LikedYouModal({
+  open,
+  onClose,
+  people,
+  currentUser,
+  superLikedBy,
+  onLikeBack,
+  onPass,
+  onReport,
+  onBlock,
+}) {
+  const [activeIndex, setActiveIndex] =
+    useState(0);
+
+  useEffect(() => {
+    if (open) {
+      setActiveIndex(0);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (
+      people.length &&
+      activeIndex > people.length - 1
+    ) {
+      setActiveIndex(
+        Math.max(0, people.length - 1)
+      );
+    }
+  }, [people, activeIndex]);
+
+  if (!open) return null;
+
+  const currentPerson =
+    people[activeIndex];
+
+  return (
+    <ModalShell
+      open={open}
+      onClose={onClose}
+      title="Liked You"
+    >
+      {!currentPerson ? (
+        <div className="rounded-[28px] bg-white p-8 text-center shadow-sm">
+          <Heart
+            size={42}
+            className="mx-auto text-[#ec64a8]"
+          />
+
+          <h3 className="mt-4 text-xl font-black text-[#2b1d28]">
+            No new likes yet
+          </h3>
+
+          <p className="mt-2 text-sm font-semibold leading-6 text-[#80636f]">
+            When someone likes your profile,
+            they’ll appear here.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="mb-4 flex items-center justify-between rounded-[24px] bg-white px-4 py-3 shadow-sm">
+            <button
+              type="button"
+              disabled={people.length <= 1}
+              onClick={() =>
+                setActiveIndex((index) =>
+                  index === 0
+                    ? people.length - 1
+                    : index - 1
+                )
+              }
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#fff0f6] text-[#d94b93] disabled:opacity-30"
+            >
+              <ChevronLeft size={20} />
+            </button>
+
+            <div className="text-center">
+              <p className="text-sm font-black text-[#2b1d28]">
+                {activeIndex + 1} of{" "}
+                {people.length}
+              </p>
+
+              <p className="text-xs font-bold text-[#80636f]">
+                Review their full profile
+              </p>
+            </div>
+
+            <button
+              type="button"
+              disabled={people.length <= 1}
+              onClick={() =>
+                setActiveIndex((index) =>
+                  index === people.length - 1
+                    ? 0
+                    : index + 1
+                )
+              }
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#fff0f6] text-[#d94b93] disabled:opacity-30"
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
+
+          <PersonCard
+            person={currentPerson}
+            currentUser={currentUser}
+            mode="likedYou"
+            superLikedYou={superLikedBy.includes(
+              currentPerson.uid
+            )}
+            onLikeBack={onLikeBack}
+            onPass={onPass}
+            onReport={onReport}
+            onBlock={onBlock}
+          />
+        </>
+      )}
+    </ModalShell>
   );
 }
 
@@ -904,6 +1251,7 @@ function PersonListModal({
   emptyText,
   onChat,
   showChat = false,
+  waitingText = false,
 }) {
   return (
     <ModalShell
@@ -933,21 +1281,32 @@ function PersonListModal({
                   </p>
 
                   <p className="truncate text-sm font-semibold text-[#80636f]">
-                    {person.distanceMiles !== null &&
-                    person.distanceMiles !== undefined
+                    {person.distanceMiles !==
+                      null &&
+                    person.distanceMiles !==
+                      undefined
                       ? `${Math.round(
                           person.distanceMiles
                         )} miles away`
                       : person.city ||
                         "Location unavailable"}
                   </p>
+
+                  {waitingText && (
+                    <p className="mt-1 text-xs font-black text-[#ec64a8]">
+                      Waiting for them to like
+                      you back
+                    </p>
+                  )}
                 </div>
               </div>
 
               {showChat && (
                 <button
                   type="button"
-                  onClick={() => onChat(person)}
+                  onClick={() =>
+                    onChat(person)
+                  }
                   className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-r from-[#f4a1bd] to-[#f06aa8] text-white"
                 >
                   <MessageCircle size={18} />
@@ -994,10 +1353,10 @@ export default function Match() {
   const [loadingPeople, setLoadingPeople] =
     useState(true);
 
-  const [likedOpen, setLikedOpen] =
+  const [likedYouOpen, setLikedYouOpen] =
     useState(false);
 
-  const [superLikedOpen, setSuperLikedOpen] =
+  const [youLikedOpen, setYouLikedOpen] =
     useState(false);
 
   const [passedOpen, setPassedOpen] =
@@ -1021,7 +1380,11 @@ export default function Match() {
       return undefined;
     }
 
-    const userRef = doc(db, "users", uid);
+    const userRef = doc(
+      db,
+      "users",
+      uid
+    );
 
     const unsubscribe = onSnapshot(
       userRef,
@@ -1046,7 +1409,8 @@ export default function Match() {
             city:
               data.city ||
               data.displayLocation ||
-              data.location?.displayLocation ||
+              data.location
+                ?.displayLocation ||
               data.location?.city ||
               "",
 
@@ -1062,7 +1426,8 @@ export default function Match() {
 
             vibes: getVibes(data),
 
-            location: getCoordinates(data),
+            location:
+              getCoordinates(data),
 
             distancePreference:
               getDistancePreference(data),
@@ -1071,10 +1436,14 @@ export default function Match() {
               data.verified === true ||
               data.isVerified === true ||
               data.verificationStatus ===
-                "approved",
+                "approved" ||
+              data.verificationStatus ===
+                "verified",
           });
         } else {
-          setCurrentUser(getAuthProfile());
+          setCurrentUser(
+            getAuthProfile()
+          );
         }
 
         setLoadingUser(false);
@@ -1093,7 +1462,7 @@ export default function Match() {
   }, [uid]);
 
   /* -------------------------------------------------------
-     LOAD ALL REAL USERS
+     LOAD ALL USERS
   ------------------------------------------------------- */
 
   useEffect(() => {
@@ -1116,7 +1485,8 @@ export default function Match() {
 
         const realUsers = snapshot.docs
           .map((userDocument) => {
-            const data = userDocument.data();
+            const data =
+              userDocument.data();
 
             return {
               ...data,
@@ -1124,7 +1494,8 @@ export default function Match() {
               name: getUserName(data),
               email: data.email || "",
 
-              photoURL: getProfilePhoto(data),
+              photoURL:
+                getProfilePhoto(data),
 
               profilePhotos:
                 getProfilePhotos(data),
@@ -1132,7 +1503,8 @@ export default function Match() {
               city:
                 data.city ||
                 data.displayLocation ||
-                data.location?.displayLocation ||
+                data.location
+                  ?.displayLocation ||
                 data.location?.city ||
                 "",
 
@@ -1157,7 +1529,9 @@ export default function Match() {
                 data.verified === true ||
                 data.isVerified === true ||
                 data.verificationStatus ===
-                  "approved",
+                  "approved" ||
+                data.verificationStatus ===
+                  "verified",
             };
           })
           .filter((person) => {
@@ -1175,7 +1549,8 @@ export default function Match() {
 
             const deleted =
               person.deleted === true ||
-              person.accountDeleted === true ||
+              person.accountDeleted ===
+                true ||
               person.status === "deleted";
 
             return (
@@ -1251,7 +1626,11 @@ export default function Match() {
     if (!uid) return;
 
     await setDoc(
-      doc(db, "matchActivity", uid),
+      doc(
+        db,
+        "matchActivity",
+        uid
+      ),
       {
         ...nextActivity,
         updatedAt: serverTimestamp(),
@@ -1286,6 +1665,7 @@ export default function Match() {
         type: "match",
         title: person.name,
         members: [uid, person.uid],
+        memberIds: [uid, person.uid],
 
         memberNames: {
           [uid]: currentUser.name,
@@ -1325,7 +1705,24 @@ export default function Match() {
     person,
     type
   ) => {
-    if (!uid) return;
+    if (!uid || !person?.uid) return;
+
+    const targetActivityRef = doc(
+      db,
+      "matchActivity",
+      person.uid
+    );
+
+    const personActivitySnapshot =
+      await getDoc(targetActivityRef);
+
+    const personActivity =
+      personActivitySnapshot.exists()
+        ? {
+            ...defaultActivity(),
+            ...personActivitySnapshot.data(),
+          }
+        : defaultActivity();
 
     const nextActivity = {
       ...activity,
@@ -1333,8 +1730,16 @@ export default function Match() {
       superLiked: [
         ...(activity.superLiked || []),
       ],
+      likedBy: [
+        ...(activity.likedBy || []),
+      ],
+      superLikedBy: [
+        ...(activity.superLikedBy || []),
+      ],
       passed: [...(activity.passed || [])],
-      matches: [...(activity.matches || [])],
+      matches: [
+        ...(activity.matches || []),
+      ],
     };
 
     nextActivity.passed =
@@ -1345,9 +1750,13 @@ export default function Match() {
 
     if (
       type === "like" &&
-      !nextActivity.liked.includes(person.uid)
+      !nextActivity.liked.includes(
+        person.uid
+      )
     ) {
-      nextActivity.liked.push(person.uid);
+      nextActivity.liked.push(
+        person.uid
+      );
     }
 
     if (
@@ -1361,22 +1770,22 @@ export default function Match() {
       );
     }
 
-    const personActivitySnapshot =
-      await getDoc(
-        doc(
-          db,
-          "matchActivity",
-          person.uid
-        )
-      );
+    await setDoc(
+      targetActivityRef,
+      {
+        likedBy: arrayUnion(uid),
 
-    const personActivity =
-      personActivitySnapshot.exists()
-        ? {
-            ...defaultActivity(),
-            ...personActivitySnapshot.data(),
-          }
-        : defaultActivity();
+        ...(type === "superLike"
+          ? {
+              superLikedBy:
+                arrayUnion(uid),
+            }
+          : {}),
+
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
 
     const theyLikedMe =
       personActivity.liked?.includes(uid) ||
@@ -1394,23 +1803,25 @@ export default function Match() {
         person.uid
       );
 
-      await setDoc(
-        doc(
-          db,
-          "matchActivity",
-          person.uid
-        ),
-        {
-          matches: [
-            ...new Set([
-              ...(personActivity.matches ||
-                []),
-              uid,
-            ]),
-          ],
+      nextActivity.likedBy =
+        nextActivity.likedBy.filter(
+          (personId) =>
+            personId !== person.uid
+        );
 
-          updatedAt:
-            serverTimestamp(),
+      nextActivity.superLikedBy =
+        nextActivity.superLikedBy.filter(
+          (personId) =>
+            personId !== person.uid
+        );
+
+      await setDoc(
+        targetActivityRef,
+        {
+          matches: arrayUnion(uid),
+          likedBy: arrayRemove(uid),
+          superLikedBy: arrayRemove(uid),
+          updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
@@ -1418,12 +1829,23 @@ export default function Match() {
       await createChatWithPerson(person);
 
       setNewMatch(person);
+      setLikedYouOpen(false);
     }
 
     await updateActivity(nextActivity);
   };
 
   const passPerson = async (person) => {
+    if (!person?.uid) return;
+
+    const previouslyLiked = (
+      activity.liked || []
+    ).includes(person.uid);
+
+    const previouslySuperLiked = (
+      activity.superLiked || []
+    ).includes(person.uid);
+
     const nextActivity = {
       ...activity,
 
@@ -1434,7 +1856,9 @@ export default function Match() {
         ]),
       ],
 
-      liked: (activity.liked || []).filter(
+      liked: (
+        activity.liked || []
+      ).filter(
         (personId) =>
           personId !== person.uid
       ),
@@ -1445,7 +1869,41 @@ export default function Match() {
         (personId) =>
           personId !== person.uid
       ),
+
+      likedBy: (
+        activity.likedBy || []
+      ).filter(
+        (personId) =>
+          personId !== person.uid
+      ),
+
+      superLikedBy: (
+        activity.superLikedBy || []
+      ).filter(
+        (personId) =>
+          personId !== person.uid
+      ),
     };
+
+    if (
+      previouslyLiked ||
+      previouslySuperLiked
+    ) {
+      await setDoc(
+        doc(
+          db,
+          "matchActivity",
+          person.uid
+        ),
+        {
+          likedBy: arrayRemove(uid),
+          superLikedBy:
+            arrayRemove(uid),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    }
 
     await updateActivity(nextActivity);
   };
@@ -1467,13 +1925,29 @@ export default function Match() {
         ]),
       ],
 
-      liked: (activity.liked || []).filter(
+      liked: (
+        activity.liked || []
+      ).filter(
         (personId) =>
           personId !== person.uid
       ),
 
       superLiked: (
         activity.superLiked || []
+      ).filter(
+        (personId) =>
+          personId !== person.uid
+      ),
+
+      likedBy: (
+        activity.likedBy || []
+      ).filter(
+        (personId) =>
+          personId !== person.uid
+      ),
+
+      superLikedBy: (
+        activity.superLikedBy || []
       ).filter(
         (personId) =>
           personId !== person.uid
@@ -1486,6 +1960,20 @@ export default function Match() {
           personId !== person.uid
       ),
     };
+
+    await setDoc(
+      doc(
+        db,
+        "matchActivity",
+        person.uid
+      ),
+      {
+        likedBy: arrayRemove(uid),
+        superLikedBy: arrayRemove(uid),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
 
     await updateActivity(nextActivity);
   };
@@ -1520,6 +2008,20 @@ export default function Match() {
           person.uid,
         ]),
       ],
+
+      likedBy: (
+        activity.likedBy || []
+      ).filter(
+        (personId) =>
+          personId !== person.uid
+      ),
+
+      superLikedBy: (
+        activity.superLikedBy || []
+      ).filter(
+        (personId) =>
+          personId !== person.uid
+      ),
     };
 
     await updateActivity(nextActivity);
@@ -1530,97 +2032,8 @@ export default function Match() {
   };
 
   /* -------------------------------------------------------
-     FILTER USERS BY ACTUAL MILE DISTANCE
+     DISTANCE CALCULATIONS
   ------------------------------------------------------- */
-
-  const nearbyPeople = useMemo(() => {
-    if (!currentUser.location) {
-      return [];
-    }
-
-    return people
-      .map((person) => {
-        const distanceMiles =
-          calculateDistanceMiles(
-            currentUser.location,
-            person.location
-          );
-
-        return {
-          ...person,
-          distanceMiles,
-        };
-      })
-      .filter((person) => {
-        if (
-          (activity.blocked || []).includes(
-            person.uid
-          )
-        ) {
-          return false;
-        }
-
-        if (
-          (activity.reported || []).includes(
-            person.uid
-          )
-        ) {
-          return false;
-        }
-
-        if (person.distanceMiles === null) {
-          return false;
-        }
-
-        return (
-          person.distanceMiles <=
-          currentUser.distancePreference
-        );
-      })
-      .sort((firstPerson, secondPerson) => {
-        const sharedDifference =
-          countSharedItems(
-            currentUser,
-            secondPerson
-          ) -
-          countSharedItems(
-            currentUser,
-            firstPerson
-          );
-
-        if (sharedDifference !== 0) {
-          return sharedDifference;
-        }
-
-        return (
-          firstPerson.distanceMiles -
-          secondPerson.distanceMiles
-        );
-      });
-  }, [
-    people,
-    currentUser,
-    activity.blocked,
-    activity.reported,
-  ]);
-
-  const discoverPeople = useMemo(() => {
-    return nearbyPeople.filter(
-      (person) =>
-        !(activity.liked || []).includes(
-          person.uid
-        ) &&
-        !(
-          activity.superLiked || []
-        ).includes(person.uid) &&
-        !(activity.passed || []).includes(
-          person.uid
-        ) &&
-        !(activity.matches || []).includes(
-          person.uid
-        )
-    );
-  }, [nearbyPeople, activity]);
 
   const peopleWithDistance =
     useMemo(() => {
@@ -1640,34 +2053,179 @@ export default function Match() {
             person.location
           ),
       }));
-    }, [people, currentUser.location]);
+    }, [
+      people,
+      currentUser.location,
+    ]);
 
-  const likedPeople =
-    peopleWithDistance.filter((person) =>
-      (activity.liked || []).includes(
-        person.uid
-      )
+  const nearbyPeople = useMemo(() => {
+    return peopleWithDistance
+      .filter((person) => {
+        if (
+          (
+            activity.blocked || []
+          ).includes(person.uid)
+        ) {
+          return false;
+        }
+
+        if (
+          (
+            activity.reported || []
+          ).includes(person.uid)
+        ) {
+          return false;
+        }
+
+        if (
+          person.distanceMiles === null ||
+          person.distanceMiles === undefined
+        ) {
+          return false;
+        }
+
+        return (
+          person.distanceMiles <=
+          currentUser.distancePreference
+        );
+      })
+      .sort(
+        (
+          firstPerson,
+          secondPerson
+        ) => {
+          const sharedDifference =
+            countSharedItems(
+              currentUser,
+              secondPerson
+            ) -
+            countSharedItems(
+              currentUser,
+              firstPerson
+            );
+
+          if (sharedDifference !== 0) {
+            return sharedDifference;
+          }
+
+          return (
+            firstPerson.distanceMiles -
+            secondPerson.distanceMiles
+          );
+        }
+      );
+  }, [
+    peopleWithDistance,
+    currentUser,
+    activity.blocked,
+    activity.reported,
+  ]);
+
+  /* -------------------------------------------------------
+     LISTS
+  ------------------------------------------------------- */
+
+  const discoverPeople = useMemo(() => {
+    return nearbyPeople.filter(
+      (person) =>
+        !(
+          activity.liked || []
+        ).includes(person.uid) &&
+        !(
+          activity.superLiked || []
+        ).includes(person.uid) &&
+        !(
+          activity.likedBy || []
+        ).includes(person.uid) &&
+        !(
+          activity.passed || []
+        ).includes(person.uid) &&
+        !(
+          activity.matches || []
+        ).includes(person.uid)
     );
+  }, [nearbyPeople, activity]);
 
-  const superLikedPeople =
-    peopleWithDistance.filter((person) =>
-      (
-        activity.superLiked || []
-      ).includes(person.uid)
+  const likedYouPeople = useMemo(() => {
+    return nearbyPeople
+      .filter(
+        (person) =>
+          (
+            activity.likedBy || []
+          ).includes(person.uid) &&
+          !(
+            activity.matches || []
+          ).includes(person.uid) &&
+          !(
+            activity.passed || []
+          ).includes(person.uid)
+      )
+      .sort(
+        (
+          firstPerson,
+          secondPerson
+        ) => {
+          const firstIsSuper = (
+            activity.superLikedBy || []
+          ).includes(firstPerson.uid);
+
+          const secondIsSuper = (
+            activity.superLikedBy || []
+          ).includes(secondPerson.uid);
+
+          if (
+            firstIsSuper !== secondIsSuper
+          ) {
+            return secondIsSuper ? 1 : -1;
+          }
+
+          return (
+            calculateCompatibility(
+              currentUser,
+              secondPerson
+            ) -
+            calculateCompatibility(
+              currentUser,
+              firstPerson
+            )
+          );
+        }
+      );
+  }, [
+    nearbyPeople,
+    activity.likedBy,
+    activity.superLikedBy,
+    activity.matches,
+    activity.passed,
+    currentUser,
+  ]);
+
+  const youLikedPeople =
+    peopleWithDistance.filter(
+      (person) =>
+        ((
+          activity.liked || []
+        ).includes(person.uid) ||
+          (
+            activity.superLiked || []
+          ).includes(person.uid)) &&
+        !(
+          activity.matches || []
+        ).includes(person.uid)
     );
 
   const passedPeople =
     peopleWithDistance.filter((person) =>
-      (activity.passed || []).includes(
-        person.uid
-      )
+      (
+        activity.passed || []
+      ).includes(person.uid)
     );
 
   const matchedPeople =
     peopleWithDistance.filter((person) =>
-      (activity.matches || []).includes(
-        person.uid
-      )
+      (
+        activity.matches || []
+      ).includes(person.uid)
     );
 
   const currentCard = discoverPeople[0];
@@ -1682,128 +2240,163 @@ export default function Match() {
   return (
     <div className="min-h-screen bg-[#fff6fa] pb-28">
       <div className="mx-auto max-w-md px-4 pt-5">
-        <div className="rounded-[38px] bg-[#fffdfd] p-5 shadow-[0_10px_35px_rgba(244,168,194,0.14)]">
-          <div className="text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#f5a8bf] via-[#ef77ae] to-[#f78e9b] text-white shadow-[0_10px_24px_rgba(237,102,157,0.22)]">
-              <Sparkles size={24} />
+        {/* PINK MATCH HEADER */}
+
+        <div className="relative overflow-hidden rounded-[40px] bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] p-5 text-white shadow-[0_14px_36px_rgba(239,148,181,0.20)]">
+          {/* Profile-style circles */}
+
+          <div className="pointer-events-none absolute -left-12 bottom-[-45px] h-40 w-40 rounded-full bg-white/10" />
+
+          <div className="pointer-events-none absolute right-[-45px] top-[-45px] h-48 w-48 rounded-full bg-white/15" />
+
+          <div className="pointer-events-none absolute right-16 top-32 h-24 w-24 rounded-full bg-white/5" />
+
+          <div className="relative z-10">
+            <div className="text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white/20 text-white shadow-[0_10px_24px_rgba(100,30,70,0.15)] backdrop-blur-md">
+                <Heart size={28} />
+              </div>
+
+              <h1
+                className="mt-4 text-[40px] leading-none tracking-[-0.05em] text-white"
+                style={{ fontWeight: 1000 }}
+              >
+                Find your people
+              </h1>
+
+              <p className="mx-auto mt-3 max-w-[310px] text-sm font-semibold leading-6 text-white/90">
+                Discover nearby people who
+                share your interests, social
+                energy, and vibe.
+              </p>
             </div>
 
-            <h1
-              className="mt-4 text-[40px] leading-none tracking-[-0.05em] text-[#eb6aaa]"
-              style={{ fontWeight: 1000 }}
-            >
-              Find your people
-            </h1>
+            {/* FROSTED LOCATION CARD */}
 
-            <p className="mx-auto mt-3 max-w-[310px] text-sm font-semibold leading-6 text-[#80636f]">
-              Discover nearby people who share
-              your interests, social energy,
-              and vibe.
-            </p>
-          </div>
+            <div className="mt-6 rounded-[28px] border border-white/30 bg-white/20 p-5 shadow-sm backdrop-blur-md">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-md">
+                  <MapPin size={21} />
+                </div>
 
-          <div className="mt-6 rounded-[28px] border border-[#f1d8e3] bg-white/80 p-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#ffe3ed] text-[#e85da2]">
-                <MapPin size={21} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-white/80">
+                    Discovering near
+                  </p>
+
+                  <p className="mt-1 truncate text-xl font-black text-white">
+                    {currentUser.city ||
+                      "Your location"}
+                  </p>
+                </div>
+
+                <div className="shrink-0 rounded-full bg-white px-4 py-2 text-sm font-black text-[#e85da2] shadow-sm">
+                  {
+                    currentUser.distancePreference
+                  }{" "}
+                  mi
+                </div>
               </div>
 
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-[#a66c86]">
-                  Discovering near
-                </p>
-
-                <p className="mt-1 truncate text-xl font-black text-[#2b1d28]">
-                  {currentUser.city ||
-                    "Your location"}
-                </p>
-              </div>
-
-              <div className="shrink-0 rounded-full bg-[#eb6aaa] px-4 py-2 text-sm font-black text-white">
-                {currentUser.distancePreference} mi
-              </div>
+              <p className="mt-4 text-sm font-semibold leading-6 text-white/90">
+                Showing profiles within{" "}
+                {
+                  currentUser.distancePreference
+                }{" "}
+                miles. Change your distance
+                anytime from Edit Profile.
+              </p>
             </div>
 
-            <p className="mt-4 text-sm font-semibold leading-6 text-[#80636f]">
-              Showing profiles within{" "}
-              {currentUser.distancePreference}{" "}
-              miles. Change your distance
-              anytime from Edit Profile.
-            </p>
-          </div>
+            {/* MATCH ACTIVITY BUTTONS */}
 
-          <div className="mt-5 grid grid-cols-4 gap-3">
-            <button
-              type="button"
-              onClick={() =>
-                setLikedOpen(true)
-              }
-              className="rounded-2xl bg-[#fff2f7] px-2 py-4 text-center"
-            >
-              <Heart
-                size={20}
-                className="mx-auto text-[#ec64a8]"
-              />
+            <div className="mt-5 grid grid-cols-4 gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  setLikedYouOpen(true)
+                }
+                className="relative rounded-2xl border border-white/20 bg-white/20 px-2 py-4 text-center backdrop-blur-md transition active:scale-[0.97]"
+              >
+                {likedYouPeople.length >
+                  0 && (
+                  <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-white ring-2 ring-[#ec64a8]" />
+                )}
 
-              <p className="mt-1 text-[11px] font-black text-[#80636f]">
-                Liked {likedPeople.length}
-              </p>
-            </button>
+                <Heart
+                  size={20}
+                  fill={
+                    likedYouPeople.length
+                      ? "currentColor"
+                      : "none"
+                  }
+                  className="mx-auto text-white"
+                />
 
-            <button
-              type="button"
-              onClick={() =>
-                setSuperLikedOpen(true)
-              }
-              className="rounded-2xl bg-[#fff2f7] px-2 py-4 text-center"
-            >
-              <Star
-                size={20}
-                className="mx-auto text-[#ec64a8]"
-              />
+                <p className="mt-1 text-[11px] font-black text-white">
+                  Liked You{" "}
+                  {likedYouPeople.length}
+                </p>
+              </button>
 
-              <p className="mt-1 text-[11px] font-black text-[#80636f]">
-                Super{" "}
-                {superLikedPeople.length}
-              </p>
-            </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setYouLikedOpen(true)
+                }
+                className="rounded-2xl border border-white/20 bg-white/20 px-2 py-4 text-center backdrop-blur-md transition active:scale-[0.97]"
+              >
+                <Heart
+                  size={20}
+                  className="mx-auto text-white"
+                />
 
-            <button
-              type="button"
-              onClick={() =>
-                setPassedOpen(true)
-              }
-              className="rounded-2xl bg-[#fff2f7] px-2 py-4 text-center"
-            >
-              <RotateCcw
-                size={20}
-                className="mx-auto text-[#ec64a8]"
-              />
+                <p className="mt-1 text-[11px] font-black text-white">
+                  You Liked{" "}
+                  {youLikedPeople.length}
+                </p>
+              </button>
 
-              <p className="mt-1 text-[11px] font-black text-[#80636f]">
-                Passed {passedPeople.length}
-              </p>
-            </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setPassedOpen(true)
+                }
+                className="rounded-2xl border border-white/20 bg-white/20 px-2 py-4 text-center backdrop-blur-md transition active:scale-[0.97]"
+              >
+                <RotateCcw
+                  size={20}
+                  className="mx-auto text-white"
+                />
 
-            <button
-              type="button"
-              onClick={() =>
-                setMatchesOpen(true)
-              }
-              className="rounded-2xl bg-[#fff2f7] px-2 py-4 text-center"
-            >
-              <MessageCircle
-                size={20}
-                className="mx-auto text-[#ec64a8]"
-              />
+                <p className="mt-1 text-[11px] font-black text-white">
+                  Passed{" "}
+                  {passedPeople.length}
+                </p>
+              </button>
 
-              <p className="mt-1 text-[11px] font-black text-[#80636f]">
-                Matches{" "}
-                {matchedPeople.length}
-              </p>
-            </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setMatchesOpen(true)
+                }
+                className="rounded-2xl border border-white/20 bg-white/20 px-2 py-4 text-center backdrop-blur-md transition active:scale-[0.97]"
+              >
+                <MessageCircle
+                  size={20}
+                  className="mx-auto text-white"
+                />
+
+                <p className="mt-1 text-[11px] font-black text-white">
+                  Matches{" "}
+                  {matchedPeople.length}
+                </p>
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* PROFILE DISPLAY AREA */}
 
         <div className="mt-6">
           {loading ? (
@@ -1826,12 +2419,10 @@ export default function Match() {
               </h3>
 
               <p className="mt-3 text-sm font-semibold leading-6 text-[#80636f]">
-                Your profile has a city, but
-                it does not have saved
-                coordinates yet. Update your
-                location in Edit Profile so
-                Limi can calculate the real
-                distance between users.
+                Update your location in Edit
+                Profile so Limi can calculate
+                the real distance between
+                users.
               </p>
 
               <button
@@ -1884,35 +2475,49 @@ export default function Match() {
                 .
               </p>
 
-              <p className="mt-3 text-sm font-semibold leading-6 text-[#a1788b]">
-                Profiles without saved
-                coordinates are not displayed
-                because their distance cannot
-                be verified.
-              </p>
+              {likedYouPeople.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setLikedYouOpen(true)
+                  }
+                  className="mt-6 w-full rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-4 font-black text-white"
+                >
+                  Review Who Liked You
+                </button>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      <PersonListModal
-        open={likedOpen}
+      <LikedYouModal
+        open={likedYouOpen}
         onClose={() =>
-          setLikedOpen(false)
+          setLikedYouOpen(false)
         }
-        title="Liked"
-        people={likedPeople}
-        emptyText="No liked profiles yet."
+        people={likedYouPeople}
+        currentUser={currentUser}
+        superLikedBy={
+          activity.superLikedBy || []
+        }
+        onLikeBack={(person) =>
+          markLiked(person, "like")
+        }
+        onPass={passPerson}
+        onReport={reportPerson}
+        onBlock={blockPerson}
       />
 
       <PersonListModal
-        open={superLikedOpen}
+        open={youLikedOpen}
         onClose={() =>
-          setSuperLikedOpen(false)
+          setYouLikedOpen(false)
         }
-        title="Super Liked"
-        people={superLikedPeople}
-        emptyText="No super likes yet."
+        title="You Liked"
+        people={youLikedPeople}
+        emptyText="You haven’t liked anyone yet."
+        waitingText
       />
 
       <PersonListModal

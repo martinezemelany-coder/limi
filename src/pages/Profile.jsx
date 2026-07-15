@@ -1126,7 +1126,7 @@ export default function Profile() {
                   Profile
                 </h1>
                 <p className="mt-2 text-lg font-bold text-white/90">
-                  your Limi identity 💕
+                   
                 </p>
               </div>
 

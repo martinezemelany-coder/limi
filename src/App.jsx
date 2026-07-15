@@ -28,8 +28,8 @@ const navItems = [
   { label: "Feed", to: "/", icon: Newspaper },
   { label: "Reels", to: "/reels", icon: Film },
   { label: "Hangouts", to: "/hangouts", icon: MapPin },
-  { label: "Match", to: "/match", icon: Heart },
   { label: "Chats", to: "/chats", icon: MessageCircle },
+  { label: "Match", to: "/match", icon: Heart },
   { label: "Profile", to: "/profile", icon: User },
 ];
 
