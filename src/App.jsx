@@ -11,7 +11,6 @@ import Hangouts from "./pages/Hangouts";
 import Match from "./pages/Match";
 import Profile from "./pages/Profile";
 import MainChat from "./pages/MainChat";
-import ChatConversation from "./pages/ChatConversation";
 import HangoutChatConversation from "./pages/HangoutChatConversation";
 import Verify from "./pages/Verify";
 
@@ -158,14 +157,6 @@ function App() {
             }
           /> 
 
-          <Route
-            path="/chat/:chatId"
-            element={
-              <ProtectedAppPage>
-                <ChatConversation />
-              </ProtectedAppPage>
-            }
-          />
 
           <Route
             path="/hangout-chat/:hangoutId"

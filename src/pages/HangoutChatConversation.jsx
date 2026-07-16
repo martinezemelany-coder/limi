@@ -1,4 +1,3 @@
-import { getFriendlyFirebaseErrorMessage } from "../lib/firebaseError";
 import React, {
   useEffect,
   useMemo,
@@ -14,23 +13,25 @@ import {
 import {
   ArrowLeft,
   CalendarDays,
-  Check,
   Clock3,
   Crown,
-  Image,
+  ImageIcon,
   Info,
   Lock,
   MapPin,
   MoreVertical,
   Send,
   ShieldCheck,
-  Smile,
   Sparkles,
   Users,
   X,
 } from "lucide-react";
 
-import { auth, db } from "../lib/firebase";
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+} from "firebase/storage";
 
 import {
   addDoc,
@@ -44,6 +45,16 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
+
+import {
+  auth,
+  db,
+  storage,
+} from "../lib/firebase";
+
+import {
+  getFriendlyFirebaseErrorMessage,
+} from "../lib/firebaseError";
 
 /* -------------------------------------------------------
    GENERAL HELPERS
@@ -80,13 +91,22 @@ function formatTime12Hour(timeValue) {
   }
 
   const date = new Date();
-  date.setHours(hours, minutes, 0, 0);
 
-  return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
+  date.setHours(
+    hours,
+    minutes,
+    0,
+    0
+  );
+
+  return date.toLocaleTimeString(
+    "en-US",
+    {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }
+  );
 }
 
 function formatDateDisplay(dateValue) {
@@ -100,106 +120,102 @@ function formatDateDisplay(dateValue) {
     return dateValue;
   }
 
-  return date.toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
+  return date.toLocaleDateString(
+    "en-US",
+    {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    }
+  );
+}
+
+function getDateFromValue(value) {
+  if (!value) return null;
+
+  try {
+    const date = value?.toDate
+      ? value.toDate()
+      : new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+
+    return date;
+  } catch {
+    return null;
+  }
 }
 
 function formatMessageTime(value) {
-  if (!value) return "";
+  const date = getDateFromValue(value);
 
-  try {
-    const date = value?.toDate
-      ? value.toDate()
-      : new Date(value);
+  if (!date) return "";
 
-    if (Number.isNaN(date.getTime())) {
-      return "";
-    }
-
-    return date.toLocaleTimeString("en-US", {
+  return date.toLocaleTimeString(
+    "en-US",
+    {
       hour: "numeric",
       minute: "2-digit",
       hour12: true,
-    });
-  } catch {
-    return "";
-  }
+    }
+  );
 }
 
 function formatMessageDay(value) {
-  if (!value) return "";
+  const date = getDateFromValue(value);
 
-  try {
-    const date = value?.toDate
-      ? value.toDate()
-      : new Date(value);
+  if (!date) return "";
 
-    if (Number.isNaN(date.getTime())) {
-      return "";
-    }
+  const today = new Date();
 
-    const today = new Date();
+  const yesterday = new Date();
 
-    const yesterday = new Date();
-    yesterday.setDate(
-      yesterday.getDate() - 1
-    );
+  yesterday.setDate(
+    yesterday.getDate() - 1
+  );
 
-    if (
-      date.toDateString() ===
-      today.toDateString()
-    ) {
-      return "Today";
-    }
-
-    if (
-      date.toDateString() ===
-      yesterday.toDateString()
-    ) {
-      return "Yesterday";
-    }
-
-    return date.toLocaleDateString(
-      "en-US",
-      {
-        weekday: "long",
-        month: "short",
-        day: "numeric",
-      }
-    );
-  } catch {
-    return "";
+  if (
+    date.toDateString() ===
+    today.toDateString()
+  ) {
+    return "Today";
   }
+
+  if (
+    date.toDateString() ===
+    yesterday.toDateString()
+  ) {
+    return "Yesterday";
+  }
+
+  return date.toLocaleDateString(
+    "en-US",
+    {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+    }
+  );
 }
 
 function getMessageDateKey(value) {
-  if (!value) return "pending";
+  const date = getDateFromValue(value);
 
-  try {
-    const date = value?.toDate
-      ? value.toDate()
-      : new Date(value);
+  if (!date) return "pending";
 
-    if (Number.isNaN(date.getTime())) {
-      return "pending";
-    }
+  return [
+    date.getFullYear(),
 
-    return [
-      date.getFullYear(),
-      String(
-        date.getMonth() + 1
-      ).padStart(2, "0"),
-      String(date.getDate()).padStart(
-        2,
-        "0"
-      ),
-    ].join("-");
-  } catch {
-    return "pending";
-  }
+    String(
+      date.getMonth() + 1
+    ).padStart(2, "0"),
+
+    String(
+      date.getDate()
+    ).padStart(2, "0"),
+  ].join("-");
 }
 
 function getProfilePhoto(data = {}) {
@@ -214,7 +230,10 @@ function getProfilePhoto(data = {}) {
   );
 }
 
-function getProfileName(data = {}, user = null) {
+function getProfileName(
+  data = {},
+  user = null
+) {
   return (
     data.name ||
     data.displayName ||
@@ -224,8 +243,12 @@ function getProfileName(data = {}, user = null) {
   );
 }
 
-function getApprovedMembers(hangout = {}) {
-  return (hangout.requests || []).filter(
+function getApprovedMembers(
+  hangout = {}
+) {
+  return (
+    hangout.requests || []
+  ).filter(
     (request) =>
       request.status === "approved"
   );
@@ -238,8 +261,11 @@ function getUserRequest(
   if (!uid) return null;
 
   return (
-    (hangout.requests || []).find(
-      (request) => request.uid === uid
+    (
+      hangout.requests || []
+    ).find(
+      (request) =>
+        request.uid === uid
     ) || null
   );
 }
@@ -255,8 +281,10 @@ function isApprovedMember(
   }
 
   return (
-    getUserRequest(hangout, uid)
-      ?.status === "approved"
+    getUserRequest(
+      hangout,
+      uid
+    )?.status === "approved"
   );
 }
 
@@ -264,39 +292,50 @@ function normalizeMemberProfiles(
   chat = {},
   hangout = {}
 ) {
-  const chatProfiles = Array.isArray(
-    chat.memberProfiles
-  )
-    ? chat.memberProfiles
-    : [];
+  const chatProfiles =
+    Array.isArray(
+      chat.memberProfiles
+    )
+      ? chat.memberProfiles
+      : [];
 
   if (chatProfiles.length) {
     return chatProfiles;
   }
 
-  return getApprovedMembers(hangout).map(
-    (member) => ({
-      uid: member.uid,
-      name:
-        member.name || "Limi User",
-      avatar:
-        member.avatar ||
-        getInitials(
-          member.name || "Limi User"
-        ),
-      photoURL:
-        member.photoURL || "",
-      city: member.city || "",
-      verified:
-        member.verified === true,
-      isHost:
-        member.uid === hangout.hostId,
-    })
-  );
+  return getApprovedMembers(
+    hangout
+  ).map((member) => ({
+    uid: member.uid,
+
+    name:
+      member.name ||
+      "Limi User",
+
+    avatar:
+      member.avatar ||
+      getInitials(
+        member.name ||
+          "Limi User"
+      ),
+
+    photoURL:
+      member.photoURL || "",
+
+    city:
+      member.city || "",
+
+    verified:
+      member.verified === true,
+
+    isHost:
+      member.uid ===
+      hangout.hostId,
+  }));
 }
 
 /* -------------------------------------------------------
-   USER PROFILE LOADER
+   CURRENT USER PROFILE
 ------------------------------------------------------- */
 
 async function loadCurrentUserProfile(
@@ -313,38 +352,65 @@ async function loadCurrentUserProfile(
 
   const fallback = {
     uid: user.uid,
-    name: fallbackName,
-    avatar: getInitials(fallbackName),
-    photoURL: user.photoURL || "",
+
+    name:
+      fallbackName,
+
+    avatar:
+      getInitials(
+        fallbackName
+      ),
+
+    photoURL:
+      user.photoURL || "",
+
     city: "",
+
     verified: false,
   };
 
   try {
-    const profileSnapshot = await getDoc(
-      doc(db, "users", user.uid)
-    );
+    const profileSnapshot =
+      await getDoc(
+        doc(
+          db,
+          "users",
+          user.uid
+        )
+      );
 
-    if (!profileSnapshot.exists()) {
+    if (
+      !profileSnapshot.exists()
+    ) {
       return fallback;
     }
 
     const profile =
       profileSnapshot.data();
 
-    const name = getProfileName(
-      profile,
-      user
-    );
+    const name =
+      getProfileName(
+        profile,
+        user
+      );
 
     return {
       ...fallback,
-      uid: user.uid,
+
+      uid:
+        user.uid,
+
       name,
-      avatar: getInitials(name),
+
+      avatar:
+        getInitials(name),
+
       photoURL:
-        getProfilePhoto(profile) ||
+        getProfilePhoto(
+          profile
+        ) ||
         fallback.photoURL,
+
       city:
         profile.city ||
         profile.displayLocation ||
@@ -352,6 +418,7 @@ async function loadCurrentUserProfile(
           ?.displayLocation ||
         profile.location?.city ||
         "",
+
       verified:
         profile.verified === true ||
         profile.isVerified === true ||
@@ -385,53 +452,85 @@ async function ensureChatDocument(
 
   const chatId =
     hangout.chatId ||
-    getHangoutChatId(hangout.id);
+    getHangoutChatId(
+      hangout.id
+    );
 
   const approvedMembers =
-    getApprovedMembers(hangout);
+    getApprovedMembers(
+      hangout
+    );
 
   const memberIds = [
     ...new Set(
       approvedMembers
-        .map((member) => member.uid)
+        .map(
+          (member) =>
+            member.uid
+        )
         .filter(Boolean)
     ),
   ];
 
   const memberProfiles =
-    approvedMembers.map((member) => ({
-      uid: member.uid,
-      name:
-        member.name || "Limi User",
-      avatar:
-        member.avatar ||
-        getInitials(
-          member.name || "Limi User"
-        ),
-      photoURL:
-        member.photoURL || "",
-      city: member.city || "",
-      verified:
-        member.verified === true,
-      isHost:
-        member.uid === hangout.hostId,
-    }));
+    approvedMembers.map(
+      (member) => ({
+        uid:
+          member.uid,
 
-  const chatReference = doc(
-    db,
-    "chats",
-    chatId
-  );
+        name:
+          member.name ||
+          "Limi User",
 
-  const chatSnapshot = await getDoc(
-    chatReference
-  );
+        avatar:
+          member.avatar ||
+          getInitials(
+            member.name ||
+              "Limi User"
+          ),
+
+        photoURL:
+          member.photoURL ||
+          "",
+
+        city:
+          member.city ||
+          "",
+
+        verified:
+          member.verified ===
+          true,
+
+        isHost:
+          member.uid ===
+          hangout.hostId,
+      })
+    );
+
+  const chatReference =
+    doc(
+      db,
+      "chats",
+      chatId
+    );
+
+  const chatSnapshot =
+    await getDoc(
+      chatReference
+    );
 
   const chatData = {
-    id: chatId,
-    type: "hangout",
-    chatType: "group",
-    hangoutId: hangout.id,
+    id:
+      chatId,
+
+    type:
+      "hangout",
+
+    chatType:
+      "group",
+
+    hangoutId:
+      hangout.id,
 
     title:
       hangout.title ||
@@ -442,16 +541,20 @@ async function ensureChatDocument(
       "Limi Hangout",
 
     emoji:
-      hangout.emoji || "🌸",
+      hangout.emoji ||
+      "🌸",
 
     description:
-      hangout.description || "",
+      hangout.description ||
+      "",
 
     location:
-      hangout.location || "",
+      hangout.location ||
+      "",
 
     rawDate:
-      hangout.rawDate || "",
+      hangout.rawDate ||
+      "",
 
     date:
       formatDateDisplay(
@@ -461,7 +564,8 @@ async function ensureChatDocument(
       "",
 
     time:
-      hangout.time || "",
+      hangout.time ||
+      "",
 
     formattedTime:
       formatTime12Hour(
@@ -471,37 +575,56 @@ async function ensureChatDocument(
       "",
 
     hostId:
-      hangout.hostId || "",
+      hangout.hostId ||
+      "",
 
     hostName:
       hangout.host ||
       "Limi Host",
 
     memberIds,
-    members: memberIds,
+
+    members:
+      memberIds,
+
     memberProfiles,
-    memberCount: memberIds.length,
+
+    memberCount:
+      memberIds.length,
 
     isLocked:
-      hangout.isLocked === true,
+      hangout.isLocked ===
+      true,
 
-    updatedAt: serverTimestamp(),
+    updatedAt:
+      serverTimestamp(),
   };
 
-  if (!chatSnapshot.exists()) {
-    await setDoc(chatReference, {
-      ...chatData,
-      lastMessage:
-        "Group chat created 💕",
-      lastMessageAt:
-        serverTimestamp(),
-      createdAt: serverTimestamp(),
-    });
+  if (
+    !chatSnapshot.exists()
+  ) {
+    await setDoc(
+      chatReference,
+      {
+        ...chatData,
+
+        lastMessage:
+          "Group chat created 💕",
+
+        lastMessageAt:
+          serverTimestamp(),
+
+        createdAt:
+          serverTimestamp(),
+      }
+    );
   } else {
     await setDoc(
       chatReference,
       chatData,
-      { merge: true }
+      {
+        merge: true,
+      }
     );
   }
 
@@ -516,6 +639,7 @@ async function ensureChatDocument(
       ),
       {
         chatId,
+
         updatedAt:
           serverTimestamp(),
       }
@@ -584,7 +708,10 @@ function MemberAvatar({
     return (
       <img
         src={member.photoURL}
-        alt={member.name || "Member"}
+        alt={
+          member.name ||
+          "Member"
+        }
         className={`${sizeClasses} shrink-0 rounded-full object-cover`}
       />
     );
@@ -596,7 +723,8 @@ function MemberAvatar({
     >
       {member.avatar ||
         getInitials(
-          member.name || "L"
+          member.name ||
+            "L"
         )}
     </div>
   );
@@ -620,48 +748,62 @@ function MembersModal({
     >
       <div className="space-y-3">
         {members.length ? (
-          members.map((member) => (
-            <div
-              key={member.uid}
-              className="flex items-center gap-3 rounded-[24px] bg-white p-4 shadow-sm"
-            >
-              <MemberAvatar
-                member={member}
-              />
+          members.map(
+            (member) => (
+              <div
+                key={
+                  member.uid
+                }
+                className="flex items-center gap-3 rounded-[24px] bg-white p-4 shadow-sm"
+              >
+                <MemberAvatar
+                  member={
+                    member
+                  }
+                />
 
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="truncate font-black text-[#241a22]">
-                    {member.name ||
-                      "Limi User"}
-                  </p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate font-black text-[#241a22]">
+                      {member.name ||
+                        "Limi User"}
+                    </p>
 
-                  {member.uid ===
-                    hostId && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#fff0d6] px-2 py-1 text-[10px] font-black uppercase text-[#b7791f]">
-                      <Crown size={11} />
-                      Host
-                    </span>
-                  )}
+                    {member.uid ===
+                      hostId && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#fff0d6] px-2 py-1 text-[10px] font-black uppercase text-[#b7791f]">
+                        <Crown
+                          size={
+                            11
+                          }
+                        />
+                        Host
+                      </span>
+                    )}
 
-                  {member.verified && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#eef9ee] px-2 py-1 text-[10px] font-black text-green-600">
-                      <ShieldCheck
-                        size={11}
-                      />
-                      Verified
-                    </span>
+                    {member.verified && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#eef9ee] px-2 py-1 text-[10px] font-black text-green-600">
+                        <ShieldCheck
+                          size={
+                            11
+                          }
+                        />
+                        Verified
+                      </span>
+                    )}
+                  </div>
+
+                  {member.city && (
+                    <p className="mt-1 truncate text-sm font-semibold text-[#80636f]">
+                      {
+                        member.city
+                      }
+                    </p>
                   )}
                 </div>
-
-                {member.city && (
-                  <p className="mt-1 truncate text-sm font-semibold text-[#80636f]">
-                    {member.city}
-                  </p>
-                )}
               </div>
-            </div>
-          ))
+            )
+          )
         ) : (
           <div className="rounded-[26px] bg-white p-7 text-center shadow-sm">
             <Users
@@ -740,6 +882,7 @@ function ChatDetailsModal({
       <div className="overflow-hidden rounded-[30px] bg-white shadow-sm">
         <div className="relative overflow-hidden bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] p-6 text-white">
           <div className="absolute -left-10 bottom-[-45px] h-36 w-36 rounded-full bg-white/10" />
+
           <div className="absolute right-[-35px] top-[-35px] h-40 w-40 rounded-full bg-white/10" />
 
           <div className="relative z-10">
@@ -767,6 +910,7 @@ function ChatDetailsModal({
                 size={19}
                 className="shrink-0 text-[#d94b93]"
               />
+
               <p className="font-bold text-[#5f4b56]">
                 {location}
               </p>
@@ -779,6 +923,7 @@ function ChatDetailsModal({
                 size={19}
                 className="shrink-0 text-[#d94b93]"
               />
+
               <p className="font-bold text-[#5f4b56]">
                 {date}
               </p>
@@ -791,6 +936,7 @@ function ChatDetailsModal({
                 size={19}
                 className="shrink-0 text-[#d94b93]"
               />
+
               <p className="font-bold text-[#5f4b56]">
                 {time}
               </p>
@@ -811,6 +957,7 @@ function ChatDetailsModal({
             className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-4 font-black text-white"
           >
             <Users size={18} />
+
             View {members.length}{" "}
             {members.length === 1
               ? "Member"
@@ -826,7 +973,9 @@ function ChatDetailsModal({
    DAY DIVIDER
 ------------------------------------------------------- */
 
-function DayDivider({ label }) {
+function DayDivider({
+  label,
+}) {
   if (!label) return null;
 
   return (
@@ -846,12 +995,21 @@ function DayDivider({ label }) {
    MESSAGE AVATAR
 ------------------------------------------------------- */
 
-function MessageAvatar({ message }) {
-  if (message.senderPhotoURL) {
+function MessageAvatar({
+  message,
+}) {
+  if (
+    message.senderPhotoURL
+  ) {
     return (
       <img
-        src={message.senderPhotoURL}
-        alt={message.senderName || "Member"}
+        src={
+          message.senderPhotoURL
+        }
+        alt={
+          message.senderName ||
+          "Member"
+        }
         className="h-9 w-9 shrink-0 rounded-full object-cover"
       />
     );
@@ -873,10 +1031,13 @@ function MessageAvatar({ message }) {
    SYSTEM MESSAGE
 ------------------------------------------------------- */
 
-function SystemMessage({ message }) {
+function SystemMessage({
+  message,
+}) {
   return (
     <div className="mx-auto my-1 max-w-[90%] rounded-full bg-[#fff0f6] px-4 py-2 text-center text-xs font-black leading-5 text-[#b46a87]">
-      {message.text}
+      {message.text ||
+        "Group update"}
     </div>
   );
 }
@@ -895,7 +1056,9 @@ function MessageBubble({
     message.sender === "system"
   ) {
     return (
-      <SystemMessage message={message} />
+      <SystemMessage
+        message={message}
+      />
     );
   }
 
@@ -903,6 +1066,10 @@ function MessageBubble({
     message.senderName ||
     message.author ||
     "Member";
+
+  const isImageMessage =
+    message.type === "image" &&
+    message.imageURL;
 
   return (
     <div
@@ -913,11 +1080,13 @@ function MessageBubble({
       }`}
     >
       {!isOwnMessage && (
-        <MessageAvatar message={message} />
+        <MessageAvatar
+          message={message}
+        />
       )}
 
       <div
-        className={`max-w-[78%] ${
+        className={`flex max-w-[78%] flex-col ${
           isOwnMessage
             ? "items-end"
             : "items-start"
@@ -931,24 +1100,43 @@ function MessageBubble({
 
             {isHost && (
               <span className="inline-flex items-center gap-1 rounded-full bg-[#fff0d6] px-2 py-0.5 text-[9px] font-black uppercase text-[#b7791f]">
-                <Crown size={9} />
+                <Crown
+                  size={9}
+                />
                 Host
               </span>
             )}
           </div>
         )}
 
-        <div
-          className={`rounded-[24px] px-4 py-3 text-sm leading-6 shadow-sm ${
-            isOwnMessage
-              ? "rounded-br-[8px] bg-gradient-to-r from-[#ef9ca2] via-[#eb7aa0] to-[#d94b93] text-white"
-              : "rounded-bl-[8px] bg-[#fff0f6] text-[#4b3946]"
-          }`}
-        >
-          <p className="whitespace-pre-wrap break-words">
-            {message.text}
-          </p>
-        </div>
+        {isImageMessage ? (
+          <div
+            className={`overflow-hidden rounded-[24px] shadow-sm ${
+              isOwnMessage
+                ? "rounded-br-[8px]"
+                : "rounded-bl-[8px]"
+            }`}
+          >
+            <img
+              src={message.imageURL}
+              alt="Chat upload"
+              loading="lazy"
+              className="max-h-[360px] max-w-full object-cover"
+            />
+          </div>
+        ) : (
+          <div
+            className={`rounded-[24px] px-4 py-3 text-sm leading-6 shadow-sm ${
+              isOwnMessage
+                ? "rounded-br-[8px] bg-gradient-to-r from-[#ef9ca2] via-[#eb7aa0] to-[#d94b93] text-white"
+                : "rounded-bl-[8px] bg-[#fff0f6] text-[#4b3946]"
+            }`}
+          >
+            <p className="whitespace-pre-wrap break-words">
+              {message.text}
+            </p>
+          </div>
+        )}
 
         <p
           className={`mt-1 px-2 text-[10px] font-bold text-[#b08a9b] ${
@@ -970,7 +1158,9 @@ function MessageBubble({
    EMPTY CHAT
 ------------------------------------------------------- */
 
-function EmptyChat({ title }) {
+function EmptyChat({
+  title,
+}) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#ffe4ef] text-[#d94b93]">
@@ -983,8 +1173,10 @@ function EmptyChat({ title }) {
 
       <p className="mt-2 max-w-[260px] text-sm font-semibold leading-6 text-[#80636f]">
         Say hi to everyone in{" "}
-        {title || "this hangout"} and start
-        planning the details 💕
+        {title ||
+          "this hangout"}{" "}
+        and start planning the
+        details 💕
       </p>
     </div>
   );
@@ -998,8 +1190,11 @@ function MessageComposer({
   value,
   onChange,
   onSend,
+  onSelectImage,
   sending,
+  uploadingImage,
   disabled,
+  imageInputRef,
 }) {
   const sendDisabled =
     disabled ||
@@ -1011,16 +1206,34 @@ function MessageComposer({
       <div className="flex items-end gap-2">
         <button
           type="button"
-          aria-label="Add image"
           onClick={() =>
-            window.alert(
-              "Image messages can be added later with Firebase Storage 💕"
-            )
+            imageInputRef.current?.click()
           }
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#fff0f6] text-[#d94b93]"
+          disabled={
+            disabled ||
+            uploadingImage
+          }
+          aria-label="Send an image"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#fff0f6] text-[#d94b93] disabled:opacity-50"
         >
-          <Image size={19} />
+          {uploadingImage ? (
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#f2b5cc] border-t-[#d94b93]" />
+          ) : (
+            <ImageIcon
+              size={21}
+            />
+          )}
         </button>
+
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          className="hidden"
+          onChange={
+            onSelectImage
+          }
+        />
 
         <div className="min-w-0 flex-1 rounded-[22px] bg-[#fff7fa] px-4 py-2">
           <textarea
@@ -1028,11 +1241,14 @@ function MessageComposer({
             value={value}
             disabled={disabled}
             onChange={(event) =>
-              onChange(event.target.value)
+              onChange(
+                event.target.value
+              )
             }
             onKeyDown={(event) => {
               if (
-                event.key === "Enter" &&
+                event.key ===
+                  "Enter" &&
                 !event.shiftKey
               ) {
                 event.preventDefault();
@@ -1062,8 +1278,8 @@ function MessageComposer({
       </div>
 
       <p className="mt-2 px-2 text-[10px] font-bold text-[#b08a9b]">
-        Press Enter to send. Use Shift +
-        Enter for a new line.
+        Press Enter to send. Use
+        Shift + Enter for a new line.
       </p>
     </div>
   );
@@ -1081,8 +1297,13 @@ function ChatHeader({
   onOpenDetails,
   onOpenMembers,
 }) {
-  const [menuOpen, setMenuOpen] =
-    useState(false);
+  const [
+    menuOpen,
+    setMenuOpen,
+  ] = useState(false);
+
+  const menuReference =
+    useRef(null);
 
   const title =
     chat?.title ||
@@ -1104,20 +1325,67 @@ function ChatHeader({
     chat?.memberCount ||
     0;
 
+  useEffect(() => {
+    if (!menuOpen) {
+      return undefined;
+    }
+
+    const closeMenu = (
+      event
+    ) => {
+      if (
+        menuReference.current &&
+        !menuReference.current.contains(
+          event.target
+        )
+      ) {
+        setMenuOpen(false);
+      }
+    };
+
+    document.addEventListener(
+      "mousedown",
+      closeMenu
+    );
+
+    document.addEventListener(
+      "touchstart",
+      closeMenu
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        closeMenu
+      );
+
+      document.removeEventListener(
+        "touchstart",
+        closeMenu
+      );
+    };
+  }, [menuOpen]);
+
   return (
     <header className="relative z-30 rounded-[30px] bg-white p-4 shadow-[0_10px_28px_rgba(239,148,181,0.14)]">
       <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={onBack}
+          aria-label="Back to chats"
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#fff0f6] text-[#d94b93]"
         >
-          <ArrowLeft size={20} />
+          <ArrowLeft
+            size={20}
+          />
         </button>
 
         <button
           type="button"
-          onClick={onOpenDetails}
+          onClick={
+            onOpenDetails
+          }
+          aria-label="View hangout details"
           className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-[#f5a8bf] via-[#ef77ae] to-[#f97d8b] text-2xl text-white shadow-sm"
         >
           {emoji}
@@ -1125,7 +1393,9 @@ function ChatHeader({
 
         <button
           type="button"
-          onClick={onOpenDetails}
+          onClick={
+            onOpenDetails
+          }
           className="min-w-0 flex-1 text-left"
         >
           <h1 className="truncate text-xl font-black tracking-[-0.03em] text-[#1f1720]">
@@ -1134,7 +1404,9 @@ function ChatHeader({
 
           {location && (
             <div className="mt-1 flex items-center gap-1 text-xs font-bold text-[#96607f]">
-              <MapPin size={13} />
+              <MapPin
+                size={13}
+              />
 
               <span className="truncate">
                 {location}
@@ -1151,25 +1423,35 @@ function ChatHeader({
           </p>
         </button>
 
-        <div className="relative">
+        <div
+          ref={menuReference}
+          className="relative"
+        >
           <button
             type="button"
             onClick={() =>
               setMenuOpen(
-                (current) => !current
+                (current) =>
+                  !current
               )
             }
+            aria-label="Chat options"
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#fff0f6] text-[#d94b93]"
           >
-            <MoreVertical size={20} />
+            <MoreVertical
+              size={20}
+            />
           </button>
 
           {menuOpen && (
-            <div className="absolute right-0 top-13 z-50 w-48 overflow-hidden rounded-[20px] bg-white p-2 shadow-2xl">
+            <div className="absolute right-0 top-14 z-50 w-48 overflow-hidden rounded-[20px] bg-white p-2 shadow-2xl">
               <button
                 type="button"
                 onClick={() => {
-                  setMenuOpen(false);
+                  setMenuOpen(
+                    false
+                  );
+
                   onOpenDetails();
                 }}
                 className="flex w-full items-center gap-3 rounded-[14px] px-3 py-3 text-left text-sm font-black text-[#5f4b56] hover:bg-[#fff0f6]"
@@ -1178,13 +1460,17 @@ function ChatHeader({
                   size={17}
                   className="text-[#d94b93]"
                 />
+
                 Hangout Details
               </button>
 
               <button
                 type="button"
                 onClick={() => {
-                  setMenuOpen(false);
+                  setMenuOpen(
+                    false
+                  );
+
                   onOpenMembers();
                 }}
                 className="flex w-full items-center gap-3 rounded-[14px] px-3 py-3 text-left text-sm font-black text-[#5f4b56] hover:bg-[#fff0f6]"
@@ -1193,6 +1479,7 @@ function ChatHeader({
                   size={17}
                   className="text-[#d94b93]"
                 />
+
                 Group Members
               </button>
             </div>
@@ -1214,7 +1501,8 @@ function ChatLoadingScreen() {
         <div className="mx-auto h-11 w-11 animate-spin rounded-full border-4 border-[#f7c5d7] border-t-[#eb6aaa]" />
 
         <p className="mt-4 font-black text-[#80636f]">
-          Opening your group chat...
+          Opening your group
+          chat...
         </p>
       </div>
     </div>
@@ -1235,11 +1523,14 @@ function ChatErrorScreen({
       <div className="mx-auto max-w-md overflow-hidden rounded-[36px] bg-white shadow-sm">
         <div className="relative overflow-hidden bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] p-8 text-center text-white">
           <div className="absolute -left-12 bottom-[-50px] h-40 w-40 rounded-full bg-white/10" />
+
           <div className="absolute right-[-45px] top-[-45px] h-44 w-44 rounded-full bg-white/10" />
 
           <div className="relative z-10">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white/20 backdrop-blur">
-              <Lock size={28} />
+              <Lock
+                size={28}
+              />
             </div>
 
             <h2 className="mt-4 text-3xl font-black tracking-[-0.05em]">
@@ -1271,111 +1562,168 @@ function ChatErrorScreen({
 ------------------------------------------------------- */
 
 export default function HangoutChatConversation() {
-  const navigate = useNavigate();
+  const navigate =
+    useNavigate();
 
-  const { id: hangoutId } =
+  const params =
     useParams();
 
-  const [firebaseUser, setFirebaseUser] =
-    useState(auth.currentUser);
+  const hangoutId =
+    params.hangoutId ||
+    params.id ||
+    "";
+
+  const [
+    firebaseUser,
+    setFirebaseUser,
+  ] = useState(
+    auth.currentUser
+  );
 
   const [
     currentUserProfile,
     setCurrentUserProfile,
   ] = useState(null);
 
-  const [hangout, setHangout] =
-    useState(null);
+  const [
+    hangout,
+    setHangout,
+  ] = useState(null);
 
-  const [chat, setChat] =
-    useState(null);
+  const [
+    chat,
+    setChat,
+  ] = useState(null);
 
-  const [messages, setMessages] =
-    useState([]);
+  const [
+    messages,
+    setMessages,
+  ] = useState([]);
 
-  const [input, setInput] =
-    useState("");
+  const [
+    input,
+    setInput,
+  ] = useState("");
 
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
   const [
     loadingMessages,
     setLoadingMessages,
   ] = useState(true);
 
-  const [sending, setSending] =
-    useState(false);
+  const [
+    sending,
+    setSending,
+  ] = useState(false);
 
-  const [errorMessage, setErrorMessage] =
-    useState("");
+  const [
+    uploadingImage,
+    setUploadingImage,
+  ] = useState(false);
 
-  const [detailsOpen, setDetailsOpen] =
-    useState(false);
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState("");
 
-  const [membersOpen, setMembersOpen] =
-    useState(false);
+  const [
+    detailsOpen,
+    setDetailsOpen,
+  ] = useState(false);
 
-  const [resolvedChatId, setResolvedChatId] =
-    useState("");
+  const [
+    membersOpen,
+    setMembersOpen,
+  ] = useState(false);
+
+  const [
+    resolvedChatId,
+    setResolvedChatId,
+  ] = useState("");
+
+  const imageInputRef =
+    useRef(null);
 
   const messagesEndReference =
     useRef(null);
 
   const currentUid =
-    firebaseUser?.uid || "";
+    firebaseUser?.uid ||
+    "";
 
-  const members = useMemo(
-    () =>
-      normalizeMemberProfiles(
-        chat || {},
-        hangout || {}
-      ),
-    [chat, hangout]
-  );
-
-  const hasAccess = useMemo(() => {
-    if (!hangout || !currentUid) {
-      return false;
-    }
-
-    return isApprovedMember(
-      hangout,
-      currentUid
+  const members =
+    useMemo(
+      () =>
+        normalizeMemberProfiles(
+          chat || {},
+          hangout || {}
+        ),
+      [
+        chat,
+        hangout,
+      ]
     );
-  }, [hangout, currentUid]);
+
+  const hasAccess =
+    useMemo(() => {
+      if (
+        !hangout ||
+        !currentUid
+      ) {
+        return false;
+      }
+
+      return isApprovedMember(
+        hangout,
+        currentUid
+      );
+    }, [
+      hangout,
+      currentUid,
+    ]);
 
   const groupedMessages =
     useMemo(() => {
       const groups = [];
 
-      messages.forEach((message) => {
-        const dateKey =
-          getMessageDateKey(
-            message.createdAt
-          );
+      messages.forEach(
+        (message) => {
+          const dateKey =
+            getMessageDateKey(
+              message.createdAt
+            );
 
-        const existingGroup =
-          groups.find(
-            (group) =>
-              group.dateKey === dateKey
-          );
+          const existingGroup =
+            groups.find(
+              (group) =>
+                group.dateKey ===
+                dateKey
+            );
 
-        if (existingGroup) {
-          existingGroup.messages.push(
-            message
-          );
-        } else {
-          groups.push({
-            dateKey,
-            label:
-              formatMessageDay(
-                message.createdAt
-              ),
-            messages: [message],
-          });
+          if (existingGroup) {
+            existingGroup.messages.push(
+              message
+            );
+          } else {
+            groups.push({
+              dateKey,
+
+              label:
+                formatMessageDay(
+                  message.createdAt
+                ),
+
+              messages: [
+                message,
+              ],
+            });
+          }
         }
-      });
+      );
 
       return groups;
     }, [messages]);
@@ -1388,17 +1736,21 @@ export default function HangoutChatConversation() {
     const unsubscribe =
       auth.onAuthStateChanged(
         async (user) => {
-          setFirebaseUser(user);
+          setFirebaseUser(
+            user
+          );
 
           if (!user) {
             setCurrentUserProfile(
               null
             );
 
-            setLoading(false);
-
             setErrorMessage(
               "Please sign in again to open this group chat."
+            );
+
+            setLoading(
+              false
             );
 
             return;
@@ -1415,7 +1767,8 @@ export default function HangoutChatConversation() {
         }
       );
 
-    return () => unsubscribe();
+    return () =>
+      unsubscribe();
   }, []);
 
   /* -------------------------------------------------------
@@ -1433,100 +1786,144 @@ export default function HangoutChatConversation() {
       return undefined;
     }
 
-    const hangoutReference = doc(
-      db,
-      "hangouts",
-      hangoutId
-    );
+    if (!currentUid) {
+      return undefined;
+    }
 
-    const unsubscribe = onSnapshot(
-      hangoutReference,
-      async (snapshot) => {
-        if (!snapshot.exists()) {
-          setHangout(null);
+    setLoading(true);
 
-          setErrorMessage(
-            "This hangout may have been deleted or cancelled."
-          );
+    const hangoutReference =
+      doc(
+        db,
+        "hangouts",
+        hangoutId
+      );
 
-          setLoading(false);
+    const unsubscribe =
+      onSnapshot(
+        hangoutReference,
 
-          return;
-        }
-
-        const loadedHangout = {
-          id: snapshot.id,
-          ...snapshot.data(),
-        };
-
-        setHangout(
-          loadedHangout
-        );
-
-        if (
-          !currentUid ||
-          !isApprovedMember(
-            loadedHangout,
-            currentUid
-          )
-        ) {
-          setErrorMessage(
-            "Only the host and approved members can access this group chat."
-          );
-
-          setLoading(false);
-
-          return;
-        }
-
-        try {
-          const chatId =
-            await ensureChatDocument(
-              loadedHangout
+        async (snapshot) => {
+          if (
+            !snapshot.exists()
+          ) {
+            setHangout(
+              null
             );
 
-          setResolvedChatId(
-            chatId
+            setResolvedChatId(
+              ""
+            );
+
+            setErrorMessage(
+              "This hangout may have been deleted or cancelled."
+            );
+
+            setLoading(
+              false
+            );
+
+            return;
+          }
+
+          const loadedHangout = {
+            id:
+              snapshot.id,
+
+            ...snapshot.data(),
+          };
+
+          setHangout(
+            loadedHangout
           );
 
-          setErrorMessage("");
-        } catch (error) {
+          const userHasAccess =
+            isApprovedMember(
+              loadedHangout,
+              currentUid
+            );
+
+          if (
+            !userHasAccess
+          ) {
+            setResolvedChatId(
+              ""
+            );
+
+            setErrorMessage(
+              "Only the host and approved members can access this group chat."
+            );
+
+            setLoading(
+              false
+            );
+
+            return;
+          }
+
+          try {
+            const chatId =
+              await ensureChatDocument(
+                loadedHangout
+              );
+
+            setResolvedChatId(
+              chatId
+            );
+
+            setErrorMessage(
+              ""
+            );
+          } catch (error) {
+            console.error(
+              "Could not prepare hangout chat:",
+              error
+            );
+
+            setResolvedChatId(
+              ""
+            );
+
+            setErrorMessage(
+              getFriendlyFirebaseErrorMessage(
+                error
+              ) ||
+                error.message ||
+                "The group chat could not be opened."
+            );
+          } finally {
+            setLoading(
+              false
+            );
+          }
+        },
+
+        (error) => {
           console.error(
-            "Could not prepare hangout chat:",
+            "Could not load hangout:",
             error
           );
 
           setErrorMessage(
-            getFriendlyFirebaseErrorMessage?.(
+            getFriendlyFirebaseErrorMessage(
               error
             ) ||
               error.message ||
-              "The group chat could not be opened."
+              "The hangout could not be loaded."
           );
-        } finally {
-          setLoading(false);
+
+          setLoading(
+            false
+          );
         }
-      },
-      (error) => {
-        console.error(
-          "Could not load hangout:",
-          error
-        );
+      );
 
-        setErrorMessage(
-          getFriendlyFirebaseErrorMessage?.(
-            error
-          ) ||
-            error.message ||
-            "The hangout could not be loaded."
-        );
-
-        setLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [hangoutId, currentUid]);
+    return () =>
+      unsubscribe();
+  }, [
+    hangoutId,
+    currentUid,
+  ]);
 
   /* -------------------------------------------------------
      LOAD CHAT DOCUMENT
@@ -1535,36 +1932,46 @@ export default function HangoutChatConversation() {
   useEffect(() => {
     if (!resolvedChatId) {
       setChat(null);
+
       return undefined;
     }
 
-    const chatReference = doc(
-      db,
-      "chats",
-      resolvedChatId
-    );
+    const chatReference =
+      doc(
+        db,
+        "chats",
+        resolvedChatId
+      );
 
-    const unsubscribe = onSnapshot(
-      chatReference,
-      (snapshot) => {
-        if (snapshot.exists()) {
-          setChat({
-            id: snapshot.id,
-            ...snapshot.data(),
-          });
-        } else {
-          setChat(null);
+    const unsubscribe =
+      onSnapshot(
+        chatReference,
+
+        (snapshot) => {
+          if (
+            snapshot.exists()
+          ) {
+            setChat({
+              id:
+                snapshot.id,
+
+              ...snapshot.data(),
+            });
+          } else {
+            setChat(null);
+          }
+        },
+
+        (error) => {
+          console.error(
+            "Could not load chat details:",
+            error
+          );
         }
-      },
-      (error) => {
-        console.error(
-          "Could not load chat details:",
-          error
-        );
-      }
-    );
+      );
 
-    return () => unsubscribe();
+    return () =>
+      unsubscribe();
   }, [resolvedChatId]);
 
   /* -------------------------------------------------------
@@ -1574,174 +1981,396 @@ export default function HangoutChatConversation() {
   useEffect(() => {
     if (!resolvedChatId) {
       setMessages([]);
-      setLoadingMessages(false);
+
+      setLoadingMessages(
+        false
+      );
+
       return undefined;
     }
 
-    setLoadingMessages(true);
-
-    const messagesQuery = query(
-      collection(
-        db,
-        "chats",
-        resolvedChatId,
-        "messages"
-      ),
-      orderBy("createdAt", "asc")
+    setLoadingMessages(
+      true
     );
 
-    const unsubscribe = onSnapshot(
-      messagesQuery,
-      (snapshot) => {
-        const loadedMessages =
-          snapshot.docs.map(
-            (messageDocument) => ({
-              id: messageDocument.id,
-              ...messageDocument.data(),
-            })
-          );
-
-        setMessages(
-          loadedMessages
-        );
-
-        setLoadingMessages(false);
-      },
-      (error) => {
-        console.error(
-          "Could not load messages:",
-          error
-        );
-
-        setLoadingMessages(false);
-
-        setErrorMessage(
-          getFriendlyFirebaseErrorMessage?.(
-            error
-          ) ||
-            error.message ||
-            "Messages could not be loaded."
-        );
-      }
-    );
-
-    return () => unsubscribe();
-  }, [resolvedChatId]);
-
-  /* -------------------------------------------------------
-     AUTO-SCROLL
-  ------------------------------------------------------- */
-
-  useEffect(() => {
-    messagesEndReference.current?.scrollIntoView(
-      {
-        behavior: "smooth",
-      }
-    );
-  }, [messages]);
-
-  /* -------------------------------------------------------
-     SEND MESSAGE
-  ------------------------------------------------------- */
-
-  const sendMessage = async () => {
-    const cleanMessage =
-      input.trim();
-
-    if (
-      !cleanMessage ||
-      sending ||
-      !resolvedChatId ||
-      !firebaseUser ||
-      !currentUserProfile ||
-      !hangout ||
-      !hasAccess
-    ) {
-      return;
-    }
-
-    try {
-      setSending(true);
-
-      const messageData = {
-        text: cleanMessage,
-        type: "text",
-
-        senderId:
-          firebaseUser.uid,
-
-        senderUid:
-          firebaseUser.uid,
-
-        senderName:
-          currentUserProfile.name,
-
-        author:
-          currentUserProfile.name,
-
-        senderAvatar:
-          currentUserProfile.avatar,
-
-        senderPhotoURL:
-          currentUserProfile.photoURL ||
-          "",
-
-        senderVerified:
-          currentUserProfile.verified ===
-          true,
-
-        createdAt:
-          serverTimestamp(),
-      };
-
-      await addDoc(
+    const messagesQuery =
+      query(
         collection(
           db,
           "chats",
           resolvedChatId,
           "messages"
         ),
-        messageData
+
+        orderBy(
+          "createdAt",
+          "asc"
+        )
       );
 
-      await updateDoc(
-        doc(
-          db,
-          "chats",
-          resolvedChatId
-        ),
-        {
-          lastMessage: `${currentUserProfile.name}: ${cleanMessage}`,
+    const unsubscribe =
+      onSnapshot(
+        messagesQuery,
 
-          lastMessageSenderId:
-            firebaseUser.uid,
+        (snapshot) => {
+          const loadedMessages =
+            snapshot.docs.map(
+              (
+                messageDocument
+              ) => ({
+                id:
+                  messageDocument.id,
 
-          lastMessageAt:
-            serverTimestamp(),
+                ...messageDocument.data(),
+              })
+            );
 
-          updatedAt:
-            serverTimestamp(),
+          setMessages(
+            loadedMessages
+          );
+
+          setLoadingMessages(
+            false
+          );
+        },
+
+        (error) => {
+          console.error(
+            "Could not load messages:",
+            error
+          );
+
+          setLoadingMessages(
+            false
+          );
+
+          setErrorMessage(
+            getFriendlyFirebaseErrorMessage(
+              error
+            ) ||
+              error.message ||
+              "Messages could not be loaded."
+          );
         }
       );
 
-      setInput("");
-    } catch (error) {
-      console.error(
-        "Could not send message:",
-        error
+    return () =>
+      unsubscribe();
+  }, [resolvedChatId]);
+
+  /* -------------------------------------------------------
+     AUTO SCROLL
+  ------------------------------------------------------- */
+
+  useEffect(() => {
+    const timeout =
+      window.setTimeout(
+        () => {
+          messagesEndReference.current?.scrollIntoView(
+            {
+              behavior:
+                "smooth",
+
+              block:
+                "end",
+            }
+          );
+        },
+        100
       );
 
-      window.alert(
-        getFriendlyFirebaseErrorMessage?.(
-          error
-        ) ||
-          error.message ||
-          "Your message could not be sent."
+    return () =>
+      window.clearTimeout(
+        timeout
       );
-    } finally {
-      setSending(false);
-    }
-  };
+  }, [messages]);
+
+  /* -------------------------------------------------------
+     SEND TEXT MESSAGE
+  ------------------------------------------------------- */
+
+  const sendMessage =
+    async () => {
+      const cleanMessage =
+        input.trim();
+
+      if (
+        !cleanMessage ||
+        sending ||
+        uploadingImage ||
+        !resolvedChatId ||
+        !firebaseUser ||
+        !currentUserProfile ||
+        !hangout ||
+        !hasAccess
+      ) {
+        return;
+      }
+
+      try {
+        setSending(true);
+
+        const messageData = {
+          text:
+            cleanMessage,
+
+          type:
+            "text",
+
+          senderId:
+            firebaseUser.uid,
+
+          senderUid:
+            firebaseUser.uid,
+
+          senderName:
+            currentUserProfile.name,
+
+          author:
+            currentUserProfile.name,
+
+          senderAvatar:
+            currentUserProfile.avatar,
+
+          senderPhotoURL:
+            currentUserProfile.photoURL ||
+            "",
+
+          senderVerified:
+            currentUserProfile.verified ===
+            true,
+
+          createdAt:
+            serverTimestamp(),
+        };
+
+        await addDoc(
+          collection(
+            db,
+            "chats",
+            resolvedChatId,
+            "messages"
+          ),
+
+          messageData
+        );
+
+        await updateDoc(
+          doc(
+            db,
+            "chats",
+            resolvedChatId
+          ),
+
+          {
+            lastMessage: `${currentUserProfile.name}: ${cleanMessage}`,
+
+            lastMessageSenderId:
+              firebaseUser.uid,
+
+            lastMessageAt:
+              serverTimestamp(),
+
+            updatedAt:
+              serverTimestamp(),
+          }
+        );
+
+        setInput("");
+      } catch (error) {
+        console.error(
+          "Could not send message:",
+          error
+        );
+
+        window.alert(
+          getFriendlyFirebaseErrorMessage(
+            error
+          ) ||
+            error.message ||
+            "Your message could not be sent."
+        );
+      } finally {
+        setSending(false);
+      }
+    };
+
+  /* -------------------------------------------------------
+     SEND IMAGE MESSAGE
+  ------------------------------------------------------- */
+
+  const sendImageMessage =
+    async (file) => {
+      if (
+        !file ||
+        uploadingImage ||
+        !resolvedChatId ||
+        !firebaseUser ||
+        !currentUserProfile ||
+        !hangout ||
+        !hasAccess
+      ) {
+        return;
+      }
+
+      if (
+        !file.type.startsWith(
+          "image/"
+        )
+      ) {
+        window.alert(
+          "Please choose an image file."
+        );
+
+        return;
+      }
+
+      const maximumSize =
+        10 *
+        1024 *
+        1024;
+
+      if (
+        file.size >
+        maximumSize
+      ) {
+        window.alert(
+          "Please choose an image smaller than 10 MB."
+        );
+
+        return;
+      }
+
+      try {
+        setUploadingImage(
+          true
+        );
+
+        const safeFileName =
+          file.name.replace(
+            /[^a-zA-Z0-9._-]/g,
+            "-"
+          );
+
+        const imageReference =
+          ref(
+            storage,
+
+            `chatImages/${resolvedChatId}/${firebaseUser.uid}/${Date.now()}-${safeFileName}`
+          );
+
+        await uploadBytes(
+          imageReference,
+          file
+        );
+
+        const imageURL =
+          await getDownloadURL(
+            imageReference
+          );
+
+        await addDoc(
+          collection(
+            db,
+            "chats",
+            resolvedChatId,
+            "messages"
+          ),
+
+          {
+            type:
+              "image",
+
+            imageURL,
+
+            text: "",
+
+            senderId:
+              firebaseUser.uid,
+
+            senderUid:
+              firebaseUser.uid,
+
+            senderName:
+              currentUserProfile.name,
+
+            author:
+              currentUserProfile.name,
+
+            senderAvatar:
+              currentUserProfile.avatar,
+
+            senderPhotoURL:
+              currentUserProfile.photoURL ||
+              "",
+
+            senderVerified:
+              currentUserProfile.verified ===
+              true,
+
+            createdAt:
+              serverTimestamp(),
+          }
+        );
+
+        await updateDoc(
+          doc(
+            db,
+            "chats",
+            resolvedChatId
+          ),
+
+          {
+            lastMessage: `${currentUserProfile.name}: 📷 Photo`,
+
+            lastMessageSenderId:
+              firebaseUser.uid,
+
+            lastMessageAt:
+              serverTimestamp(),
+
+            updatedAt:
+              serverTimestamp(),
+          }
+        );
+      } catch (error) {
+        console.error(
+          "Could not send image:",
+          error
+        );
+
+        window.alert(
+          getFriendlyFirebaseErrorMessage(
+            error
+          ) ||
+            error.message ||
+            "The image could not be sent."
+        );
+      } finally {
+        setUploadingImage(
+          false
+        );
+
+        if (
+          imageInputRef.current
+        ) {
+          imageInputRef.current.value =
+            "";
+        }
+      }
+    };
+
+  const handleImageSelection =
+    (event) => {
+      const file =
+        event.target.files?.[0];
+
+      if (file) {
+        sendImageMessage(
+          file
+        );
+      }
+    };
 
 /* -------------------------------------------------------
      PAGE STATES
@@ -1801,7 +2430,9 @@ export default function HangoutChatConversation() {
           }
         />
 
-        {/* HANGOUT SUMMARY */}
+        {/* ------------------------------------------------
+            HANGOUT SUMMARY
+        ------------------------------------------------ */}
 
         <button
           type="button"
@@ -1826,6 +2457,13 @@ export default function HangoutChatConversation() {
                     chat?.title ||
                     "Limi Hangout"}
                 </h2>
+
+                <p className="mt-2 text-sm font-bold text-white/90">
+                  Hosted by{" "}
+                  {hangout.host ||
+                    chat?.hostName ||
+                    "Limi Host"}
+                </p>
               </div>
 
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-white/20 text-2xl backdrop-blur">
@@ -1840,6 +2478,7 @@ export default function HangoutChatConversation() {
                 <div className="flex items-center gap-2">
                   <CalendarDays
                     size={15}
+                    className="shrink-0"
                   />
 
                   <p className="truncate text-xs font-black">
@@ -1847,6 +2486,7 @@ export default function HangoutChatConversation() {
                       hangout.rawDate
                     ) ||
                       hangout.date ||
+                      chat?.date ||
                       "Date not set"}
                   </p>
                 </div>
@@ -1854,13 +2494,17 @@ export default function HangoutChatConversation() {
 
               <div className="rounded-[18px] bg-white/15 px-3 py-3 backdrop-blur">
                 <div className="flex items-center gap-2">
-                  <Clock3 size={15} />
+                  <Clock3
+                    size={15}
+                    className="shrink-0"
+                  />
 
                   <p className="truncate text-xs font-black">
                     {formatTime12Hour(
                       hangout.time
                     ) ||
                       hangout.formattedTime ||
+                      chat?.formattedTime ||
                       "Time not set"}
                   </p>
                 </div>
@@ -1875,6 +2519,7 @@ export default function HangoutChatConversation() {
 
               <p className="truncate text-xs font-black">
                 {hangout.location ||
+                  chat?.location ||
                   "Location not set"}
               </p>
             </div>
@@ -1886,7 +2531,9 @@ export default function HangoutChatConversation() {
           </div>
         </button>
 
-        {/* MESSAGE AREA */}
+        {/* ------------------------------------------------
+            MESSAGE AREA
+        ------------------------------------------------ */}
 
         <main className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[32px] border border-[#f2dce6] bg-white shadow-[0_10px_28px_rgba(239,148,181,0.12)]">
           <div className="border-b border-[#f6e5ec] px-5 py-4">
@@ -1936,7 +2583,9 @@ export default function HangoutChatConversation() {
                       }
                     >
                       <DayDivider
-                        label={group.label}
+                        label={
+                          group.label
+                        }
                       />
 
                       <div className="space-y-3">
@@ -1995,7 +2644,9 @@ export default function HangoutChatConversation() {
           </div>
         </main>
 
-        {/* COMPOSER */}
+        {/* ------------------------------------------------
+            MESSAGE COMPOSER
+        ------------------------------------------------ */}
 
         <div className="sticky bottom-3 z-20 mt-4">
           <MessageComposer
@@ -2007,31 +2658,43 @@ export default function HangoutChatConversation() {
               !resolvedChatId ||
               !hasAccess
             }
+            uploadingImage={
+              uploadingImage
+            }
+            imageInputRef={
+              imageInputRef
+            }
+            onChooseImage={() =>
+              imageInputRef.current?.click()
+            }
+            onImageSelected={
+              handleImageSelection
+            }
           />
         </div>
       </div>
 
-      {/* DETAILS MODAL */}
+      {/* ------------------------------------------------
+          HANGOUT DETAILS MODAL
+      ------------------------------------------------ */}
 
-      <HangoutDetailsModal
+      <ChatDetailsModal
         open={detailsOpen}
         onClose={() =>
           setDetailsOpen(false)
         }
-        hangout={hangout}
         chat={chat}
+        hangout={hangout}
         members={members}
-        currentUid={currentUid}
-        onOpenMembers={() => {
+        onViewMembers={() => {
           setDetailsOpen(false);
           setMembersOpen(true);
         }}
-        onBackToHangouts={() =>
-          navigate("/hangouts")
-        }
       />
 
-      {/* MEMBERS MODAL */}
+      {/* ------------------------------------------------
+          MEMBERS MODAL
+      ------------------------------------------------ */}
 
       <MembersModal
         open={membersOpen}
@@ -2040,7 +2703,6 @@ export default function HangoutChatConversation() {
         }
         members={members}
         hostId={hangout.hostId}
-        currentUid={currentUid}
       />
     </div>
   );
