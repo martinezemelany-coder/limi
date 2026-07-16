@@ -686,7 +686,15 @@ function ChatCard({
     <button
       type="button"
       onClick={onClick}
-      className="w-full rounded-[28px] bg-white p-4 text-left shadow-[0_10px_28px_rgba(239,148,181,0.13)] transition active:scale-[0.99]"
+      className="
+rounded-[24px]
+bg-white/80
+backdrop-blur-lg
+border border-white/60
+shadow-[0_8px_25px_rgba(236,100,168,0.08)]
+transition
+hover:scale-[1.01]
+"
     >
       <div className="flex items-center gap-4">
         <ChatAvatar
@@ -754,39 +762,57 @@ function ChatSection({
   onOpenChat,
 }) {
   return (
-    <section className="space-y-4">
-      <div className="flex items-center gap-3 px-1">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#ffe4ef] text-[#d94b93]">
-          <Icon size={21} />
+    <section className="
+rounded-[34px]
+bg-white/55
+backdrop-blur-xl
+border border-white/70
+shadow-[0_10px_35px_rgba(236,100,168,0.08)]
+p-5
+">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-[#ffe5ef] to-[#fbd1e1] text-[#d94b93]">
+            <Icon size={22} />
+          </div>
+
+          <div className="min-w-0">
+            <h2 className="text-2xl font-black tracking-[-0.04em] text-[#1f1720]">
+              {title}
+            </h2>
+
+            <p className="mt-1 text-sm font-bold leading-5 text-[#80636f]">
+              {subtitle}
+            </p>
+          </div>
         </div>
 
-        <div>
-          <h2 className="text-2xl font-black tracking-[-0.04em] text-[#1f1720]">
-            {title}
-          </h2>
-
-          <p className="text-sm font-bold text-[#80636f]">
-            {subtitle}
-          </p>
-        </div>
+        <span className="flex h-9 min-w-9 shrink-0 items-center justify-center rounded-full bg-[#fff0f6] px-3 text-sm font-black text-[#d94b93]">
+          {chats.length}
+        </span>
       </div>
 
+    
+
       {chats.length ? (
-        <div className="space-y-3">
+        <div className="mt-7 space-y-4">
           {chats.map((chat) => (
             <ChatCard
               key={chat.id}
               chat={chat}
               currentUid={currentUid}
-              onClick={() =>
-                onOpenChat(chat)
-              }
+              onClick={() => onOpenChat(chat)}
             />
           ))}
         </div>
       ) : (
-        <div className="rounded-[28px] bg-white p-6 text-center shadow-sm">
-          <p className="text-sm font-bold text-[#80636f]">
+        <div className="rounded-[26px] border border-dashed border-[#f0d7e2] bg-[#fff8fb] px-5 py-8 text-center">
+          <Sparkles
+            size={28}
+            className="mx-auto text-[#ef8bb3]"
+          />
+
+          <p className="mt-3 text-sm font-bold text-[#80636f]">
             Nothing here yet 💕
           </p>
         </div>
@@ -795,6 +821,8 @@ function ChatSection({
   );
 }
 
+
+    
 /* -------------------------------------------------------
    MATCHED PERSON CARD
 ------------------------------------------------------- */
@@ -1618,53 +1646,74 @@ export default function MainChat() {
   /* -------------------------------------------------------
      LIVE CHAT LIST
   ------------------------------------------------------- */
+useEffect(() => {
+  if (!currentUid) {
+    setChats([]);
+    setLoadingChats(false);
+    return undefined;
+  }
 
-  useEffect(() => {
-    if (!currentUid) {
-      setChats([]);
+  setLoadingChats(true);
+
+  /*
+    Do not use orderBy here.
+
+    Combining array-contains with orderBy can require a
+    Firestore composite index. Instead, load the user's
+    chats and sort them safely in JavaScript.
+  */
+  const chatsQuery = query(
+    collection(db, "chats"),
+    where(
+      "memberIds",
+      "array-contains",
+      currentUid
+    )
+  );
+
+  const unsubscribe = onSnapshot(
+    chatsQuery,
+    (snapshot) => {
+      const loadedChats = snapshot.docs
+        .map((chatDocument) => ({
+          id: chatDocument.id,
+          ...chatDocument.data(),
+        }))
+        .sort((firstChat, secondChat) => {
+          const firstTime =
+            firstChat.updatedAt?.toMillis?.() ||
+            firstChat.lastMessageAt?.toMillis?.() ||
+            firstChat.createdAt?.toMillis?.() ||
+            0;
+
+          const secondTime =
+            secondChat.updatedAt?.toMillis?.() ||
+            secondChat.lastMessageAt?.toMillis?.() ||
+            secondChat.createdAt?.toMillis?.() ||
+            0;
+
+          return secondTime - firstTime;
+        });
+
+      setChats(loadedChats);
       setLoadingChats(false);
-      return undefined;
+    },
+    (error) => {
+      console.error(
+        "Could not load chats:",
+        error
+      );
+
+      /*
+        Do not erase existing chats during a temporary
+        listener error.
+      */
+      setLoadingChats(false);
     }
+  );
 
-    setLoadingChats(true);
-
-    const chatsQuery = query(
-      collection(db, "chats"),
-      where(
-        "memberIds",
-        "array-contains",
-        currentUid
-      ),
-      orderBy("updatedAt", "desc")
-    );
-
-    const unsubscribe = onSnapshot(
-      chatsQuery,
-      (snapshot) => {
-        const loadedChats =
-          snapshot.docs.map(
-            (chatDocument) => ({
-              id: chatDocument.id,
-              ...chatDocument.data(),
-            })
-          );
-
-        setChats(loadedChats);
-        setLoadingChats(false);
-      },
-      (error) => {
-        console.error(
-          "Could not load chats:",
-          error
-        );
-
-        setChats([]);
-        setLoadingChats(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [currentUid]);
+  return () => unsubscribe();
+}, [currentUid]);
 
   /* -------------------------------------------------------
      REPAIR APPROVED HANGOUT CHATS
@@ -1674,129 +1723,79 @@ export default function MainChat() {
   ------------------------------------------------------- */
 
   useEffect(() => {
-    if (
-      !currentUid ||
-      repairingHangouts
-    ) {
-      return;
-    }
+  if (!currentUid) {
+    return undefined;
+  }
 
-    let cancelled = false;
+  let cancelled = false;
 
-    async function repairMyHangoutChats() {
-      try {
-        setRepairingHangouts(true);
+  async function repairMyHangoutChats() {
+    try {
+      setRepairingHangouts(true);
 
-        const hangoutsSnapshot =
-          await getDocs(
-            collection(db, "hangouts")
-          );
+      const hangoutsSnapshot = await getDocs(
+        collection(db, "hangouts")
+      );
 
-        const myHangouts =
-          hangoutsSnapshot.docs
-            .map(
-              (hangoutDocument) => ({
-                id: hangoutDocument.id,
-                ...hangoutDocument.data(),
-              })
-            )
-            .filter(
-              (hangout) =>
-                hangout.isLocked ===
-                  true &&
-                userCanAccessHangout(
-                  hangout,
-                  currentUid
-                )
-            );
+      const accessibleLockedHangouts =
+        hangoutsSnapshot.docs
+          .map((hangoutDocument) => ({
+            id: hangoutDocument.id,
+            ...hangoutDocument.data(),
+          }))
+          .filter((hangout) => {
+            const canAccess =
+              userCanAccessHangout(
+                hangout,
+                currentUid
+              );
 
-        await Promise.all(
-          myHangouts.map((hangout) =>
-            repairHangoutChat(hangout)
-          )
-        );
-      } catch (error) {
-        console.error(
-          "Could not repair hangout chats:",
-          error
-        );
-      } finally {
-        if (!cancelled) {
-          setRepairingHangouts(false);
-        }
-      }
-    }
+            /*
+              A group chat should be available when:
+              - the hangout is locked, or
+              - a chatId was already created
+            */
+            const hasGroupChat =
+              hangout.isLocked === true ||
+              Boolean(hangout.chatId);
 
-    repairMyHangoutChats();
+            return canAccess && hasGroupChat;
+          });
 
-    return () => {
-      cancelled = true;
-    };
-  }, [currentUid]);
-
-  /* -------------------------------------------------------
-     LIVE FRIENDS
-  ------------------------------------------------------- */
-
-  useEffect(() => {
-    if (!currentUid) {
-      setFriends([]);
-      return undefined;
-    }
-
-    const friendsQuery = query(
-      collection(
-        db,
-        "users",
-        currentUid,
-        "friends"
-      )
-    );
-
-    const unsubscribe = onSnapshot(
-      friendsQuery,
-      (snapshot) => {
-        const loadedFriends =
-          snapshot.docs.map(
-            (friendDocument) => {
-              const data =
-                friendDocument.data();
-
-              const name =
-                data.name ||
-                "Limi Friend";
-
-              return {
-                id:
-                  friendDocument.id,
-                uid:
-                  data.uid ||
-                  friendDocument.id,
-                ...data,
-                name,
-                avatar:
-                  data.avatar ||
-                  getInitials(name),
-                photoURL:
-                  data.photoURL ||
-                  data.profileImage ||
-                  "",
-              };
+      await Promise.all(
+        accessibleLockedHangouts.map(
+          async (hangout) => {
+            try {
+              await repairHangoutChat(
+                hangout
+              );
+            } catch (error) {
+              console.error(
+                `Could not repair hangout chat ${hangout.id}:`,
+                error
+              );
             }
-          );
-
-        setFriends(loadedFriends);
-      },
-      (error) => {
-        console.error(
-          "Could not load friends:",
-          error
-        );
+          }
+        )
+      );
+    } catch (error) {
+      console.error(
+        "Could not repair hangout chats:",
+        error
+      );
+    } finally {
+      if (!cancelled) {
+        setRepairingHangouts(false);
       }
-    );
+    }
+  }
 
-    return () => unsubscribe();
-  }, [currentUid]);
+  repairMyHangoutChats();
+
+  return () => {
+    cancelled = true;
+  };
+}, [currentUid]);
 
   /* -------------------------------------------------------
      LIVE FRIEND REQUESTS
@@ -2627,38 +2626,47 @@ const totalGroups =
         person.name ||
         "Limi User";
 
-      const memberProfiles = [
-        {
-          uid: currentUid,
-          name: myName,
+      const memberProfiles =
+  approvedMembers.map((member) => ({
+    uid: member.uid,
+    name:
+      member.name || "Limi User",
+    avatar:
+      member.avatar ||
+      getInitials(
+        member.name || "L"
+      ),
+    photoURL:
+      member.photoURL || "",
+    city: member.city || "",
+    isHost:
+      member.uid === hangout.hostId,
+  }));
 
-          avatar:
-            currentProfile?.avatar ||
-            getInitials(myName),
-
-          photoURL:
-            currentProfile?.photoURL ||
-            currentUser?.photoURL ||
-            "",
-
-          city:
-            currentProfile?.city || "",
-        },
-        {
-          uid: personUid,
-          name: personName,
-
-          avatar:
-            person.avatar ||
-            getInitials(personName),
-
-          photoURL:
-            person.photoURL || "",
-
-          city:
-            person.city || "",
-        },
-      ];
+if (
+  hangout.hostId &&
+  !memberProfiles.some(
+    (member) =>
+      member.uid === hangout.hostId
+  )
+) {
+  memberProfiles.unshift({
+    uid: hangout.hostId,
+    name:
+      hangout.host ||
+      "Limi Host",
+    avatar:
+      hangout.hostAvatar ||
+      getInitials(
+        hangout.host || "L"
+      ),
+    photoURL:
+      hangout.hostPhotoURL || "",
+    city:
+      hangout.hostCity || "",
+    isHost: true,
+  });
+}
 
       if (!chatSnapshot.exists()) {
         await setDoc(

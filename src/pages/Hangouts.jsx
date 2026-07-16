@@ -44,6 +44,7 @@ import {
   where,
 } from "firebase/firestore";
 
+
 /* -------------------------------------------------------
    HANGOUT OPTIONS
 ------------------------------------------------------- */
@@ -81,6 +82,101 @@ const starterFilters = [
   { label: "Interests", emoji: "✨" },
   { label: "Mine", emoji: "💗" },
 ];
+
+const hangoutThemes = {
+  rose: {
+    card:
+      "bg-gradient-to-br from-[#f09abd] via-[#eb7eaa] to-[#dc6795]",
+
+    circles: [
+      "-right-16 -top-16 h-52 w-52 bg-white/10",
+      "-bottom-20 -left-16 h-60 w-60 bg-[#ffd4e5]/20",
+      "left-[42%] top-[38%] h-28 w-28 bg-white/5",
+    ],
+  },
+
+  coral: {
+    card:
+      "bg-gradient-to-br from-[#f3a0ad] via-[#ed839d] to-[#dc6b8e]",
+
+    circles: [
+      "-left-20 -top-16 h-60 w-60 bg-[#ffd8d1]/20",
+      "-bottom-10 right-[-35px] h-40 w-40 bg-white/10",
+      "right-[30%] top-[42%] h-20 w-20 bg-[#ffc7c7]/15",
+    ],
+  },
+
+  peach: {
+    card:
+      "bg-gradient-to-br from-[#f2aa9d] via-[#ed9299] to-[#df7896]",
+
+    circles: [
+      "right-[-55px] top-[22%] h-48 w-48 bg-[#ffe1d6]/20",
+      "-bottom-24 left-[8%] h-64 w-64 bg-white/10",
+      "left-[-25px] top-[-30px] h-24 w-24 bg-[#ffd2ca]/20",
+    ],
+  },
+
+  sakura: {
+    card:
+      "bg-gradient-to-br from-[#ee9fc4] via-[#e788b7] to-[#d76fa5]",
+
+    circles: [
+      "-left-12 top-[25%] h-40 w-40 bg-white/10",
+      "-right-20 -top-20 h-64 w-64 bg-[#ffd8ed]/20",
+      "bottom-[12%] right-[25%] h-24 w-24 bg-[#f6bfdd]/15",
+    ],
+  },
+
+  berry: {
+    card:
+      "bg-gradient-to-br from-[#e889a9] via-[#db6f95] to-[#c95482]",
+
+    circles: [
+      "left-[12%] -top-20 h-52 w-52 bg-[#f7cde4]/15",
+      "-bottom-20 -right-16 h-64 w-64 bg-white/10",
+      "-left-8 bottom-[18%] h-28 w-28 bg-[#ebb4d2]/15",
+    ],
+  },
+
+  blush: {
+    card:
+      "bg-gradient-to-br from-[#f3a5bb] via-[#ec8baa] to-[#dd729b]",
+
+    circles: [
+      "-right-10 top-[12%] h-36 w-36 bg-white/10",
+      "-left-24 -bottom-24 h-72 w-72 bg-[#ffe1e9]/20",
+      "left-[38%] -top-8 h-24 w-24 bg-[#fac4d7]/15",
+      "right-[28%] bottom-[8%] h-16 w-16 bg-white/5",
+    ],
+  },
+};
+
+function getRandomHangoutTheme() {
+    const themeNames = Object.keys(hangoutThemes);
+
+    return themeNames[Math.floor(Math.random() * themeNames.length)];
+} 
+
+function getHangoutTheme(item = {}) {
+  if (item.themeId && hangoutThemes[item.themeId]) {
+    return hangoutThemes[item.themeId];
+  }
+
+  const themeNames = Object.keys(hangoutThemes);
+  const stableText = item.id || item.title || "limi";
+
+  let total = 0;
+
+  for (let index = 0; index < stableText.length; index += 1) {
+    total += stableText.charCodeAt(index);
+  }
+
+  const fallbackThemeName =
+    themeNames[total % themeNames.length];
+
+  return hangoutThemes[fallbackThemeName];
+}
 
 /* -------------------------------------------------------
    USER HELPERS
@@ -2023,6 +2119,9 @@ function HangoutCard({
   onDelete,
   onShare,
 }) {
+
+  const cardTheme = getHangoutTheme(item); 
+
   const approved =
     getApprovedMembers(item);
 
@@ -2152,7 +2251,16 @@ function HangoutCard({
 
   return (
     <div className="overflow-hidden rounded-[36px] bg-white shadow-[0_12px_35px_rgba(239,148,181,0.14)]">
-      <div className="relative min-h-[250px] bg-gradient-to-r from-[#ee9ab7] via-[#f18bab] to-[#fb8f9f] p-7 text-white">
+      <div
+  className={`relative min-h-[250px] overflow-hidden p-7 text-white ${cardTheme.card}`}
+>
+  {cardTheme.circles.map((circleClasses, index) => (
+  <div
+    key={`${item.id}-circle-${index}`}
+    className={`pointer-events-none absolute rounded-full ${circleClasses}`}
+  />
+))}
+
         <div className="flex items-start justify-between gap-3">
           <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-white/20 text-3xl backdrop-blur">
             {item.emoji ||
@@ -2263,6 +2371,7 @@ function HangoutCard({
             {countdown}
           </div>
         )}
+
       </div>
 
       <div className="space-y-5 p-6">
@@ -2546,11 +2655,14 @@ export default function Hangouts() {
       );
     }
 
+  const themeId = getRandomHangoutTheme();
+
     await addDoc(
       collection(db, "hangouts"),
       {
         ...formData,
 
+        themeId: themeId,
         isLocked: false,
         chatId: "",
 
