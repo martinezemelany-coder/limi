@@ -1,4 +1,13 @@
-import { BrowserRouter as Router, Routes, Route, NavLink } from "react-router-dom";
+import React, { useEffect } from "react";
+
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  NavLink,
+  useLocation,
+} from "react-router-dom";
+
 import { FirebaseAuthProvider } from "./lib/FirebaseAuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -24,42 +33,187 @@ import {
   MessageCircle,
 } from "lucide-react";
 
+/* -------------------------------------------------------
+   NAVIGATION ITEMS
+------------------------------------------------------- */
+
 const navItems = [
-  { label: "Feed", to: "/", icon: Newspaper },
-  { label: "Reels", to: "/reels", icon: Film },
-  { label: "Hangouts", to: "/hangouts", icon: MapPin },
-  { label: "Chats", to: "/chats", icon: MessageCircle },
-  { label: "Match", to: "/match", icon: Heart },
-  { label: "Profile", to: "/profile", icon: User },
+  {
+    label: "Feed",
+    to: "/",
+    icon: Newspaper,
+  },
+  {
+    label: "Reels",
+    to: "/reels",
+    icon: Film,
+  },
+  {
+    label: "Hangouts",
+    to: "/hangouts",
+    icon: MapPin,
+  },
+  {
+    label: "Chats",
+    to: "/chats",
+    icon: MessageCircle,
+  },
+  {
+    label: "Match",
+    to: "/match",
+    icon: Heart,
+  },
+  {
+    label: "Profile",
+    to: "/profile",
+    icon: User,
+  },
 ];
 
-function AppLayout({ children }) {
-  return (
-    <div className="min-h-screen bg-[#fff6fa] pb-28">
-      <div className="mx-auto min-h-screen max-w-md">{children}</div>
+/* -------------------------------------------------------
+   PAGE TRANSITION
+------------------------------------------------------- */
 
-      <nav className="fixed bottom-4 left-1/2 z-50 w-[94%] max-w-md -translate-x-1/2 rounded-[28px] border border-[#f4dce7] bg-white/95 px-2 py-2 shadow-[0_14px_35px_rgba(239,148,181,0.22)] backdrop-blur">
-        <div className="grid grid-cols-6 gap-1">
+function PageTransition({ children }) {
+  const location = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "auto",
+    });
+  }, [location.pathname]);
+
+  return (
+    <div
+      key={location.pathname}
+      className="limi-page-transition"
+    >
+      {children}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------
+   PREMIUM NAVIGATION
+------------------------------------------------------- */
+
+function PremiumNavigation() {
+  const location = useLocation();
+
+  const getActiveIndex = () => {
+    if (location.pathname === "/") {
+      return 0;
+    }
+
+    if (location.pathname.startsWith("/reels")) {
+      return 1;
+    }
+
+    if (
+      location.pathname.startsWith("/hangouts") ||
+      location.pathname.startsWith("/hangout-chat")
+    ) {
+      return 2;
+    }
+
+    if (
+      location.pathname.startsWith("/chats") ||
+      location.pathname.startsWith("/chat/")
+    ) {
+      return 3;
+    }
+
+    if (location.pathname.startsWith("/match")) {
+      return 4;
+    }
+
+    if (
+      location.pathname.startsWith("/profile") ||
+      location.pathname.startsWith("/verify")
+    ) {
+      return 5;
+    }
+
+    return 0;
+  };
+
+  const activeIndex = getActiveIndex();
+
+  return (
+    <nav className="fixed bottom-3 left-0 right-0 z-30 px-3 pb-[max(4px,env(safe-area-inset-bottom))]">
+      <div className="relative mx-auto max-w-md rounded-[26px] border border-white/35 bg-white/20 p-1.5 shadow-[0_14px_40px_rgba(71,45,58,0.10)] backdrop-blur-2xl">
+        {/* Top glass shine */}
+
+        <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent" />
+
+        {/* Sliding Limi gradient */}
+
+        <div
+          className="pointer-events-none absolute bottom-1.5 top-1.5 rounded-[20px] bg-gradient-to-br from-[#ee78aa] via-[#df5e9c] to-[#f18a91] shadow-[0_8px_20px_rgba(212,72,139,0.26)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          style={{
+            left: "6px",
+            width: "calc((100% - 12px) / 6)",
+            transform: `translateX(${activeIndex * 100}%)`,
+          }}
+        />
+
+        <div className="relative z-10 grid grid-cols-6">
           {navItems.map(({ label, to, icon: Icon }) => (
             <NavLink
               key={label}
               to={to}
-              className={({ isActive }) =>
-                `flex flex-col items-center justify-center rounded-2xl px-1 py-3 text-[9px] font-black transition ${
-                  isActive
-                    ? "bg-gradient-to-b from-[#c95c92] to-[#d94b93] text-white shadow-[0_8px_18px_rgba(217,75,147,0.25)]"
-                    : "text-[#5f4b56]"
-                }`
-              }
+              end={to === "/"}
+              aria-label={label}
+              className="group relative flex h-[52px] items-center justify-center rounded-[20px]"
             >
-              <Icon size={21} />
+              {({ isActive }) => (
+                <span
+                  className={`relative z-10 flex h-10 w-10 items-center justify-center rounded-full transition-all duration-300 ease-out ${
+                    isActive
+                      ? "-translate-y-0.5 scale-110 text-white"
+                      : "scale-100 text-[#75636c] group-hover:text-[#d45c98] group-active:scale-90"
+                  }`}
+                >
+                  <Icon
+                    size={isActive ? 22 : 21}
+                    strokeWidth={isActive ? 2.7 : 2.2}
+                    fill={
+                      isActive && label === "Match"
+                        ? "currentColor"
+                        : "none"
+                    }
+                  />
+                </span>
+              )}
             </NavLink>
           ))}
         </div>
-      </nav>
+      </div>
+    </nav>
+  );
+}
+
+/* -------------------------------------------------------
+   APP LAYOUT
+------------------------------------------------------- */
+
+function AppLayout({ children }) {
+  return (
+    <div className="min-h-screen bg-[#fff6fa] pb-28">
+      <div className="mx-auto min-h-screen max-w-md">
+        <PageTransition>{children}</PageTransition>
+      </div>
+
+      <PremiumNavigation />
     </div>
   );
 }
+
+/* -------------------------------------------------------
+   PROTECTED PAGE
+------------------------------------------------------- */
 
 function ProtectedAppPage({ children }) {
   return (
@@ -69,118 +223,166 @@ function ProtectedAppPage({ children }) {
   );
 }
 
+/* -------------------------------------------------------
+   ROUTES
+------------------------------------------------------- */
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route
+        path="/login"
+        element={<Login />}
+      />
+
+      <Route
+        path="/signup"
+        element={<Signup />}
+      />
+
+      <Route
+        path="/onboarding"
+        element={
+          <ProtectedRoute requireOnboarding={false}>
+            <Onboarding />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/verify"
+        element={
+          <ProtectedAppPage>
+            <Verify />
+          </ProtectedAppPage>
+        }
+      />
+
+      <Route
+        path="/"
+        element={
+          <ProtectedAppPage>
+            <Feed />
+          </ProtectedAppPage>
+        }
+      />
+
+      <Route
+        path="/reels"
+        element={
+          <ProtectedAppPage>
+            <Reels />
+          </ProtectedAppPage>
+        }
+      />
+
+      <Route
+        path="/hangouts"
+        element={
+          <ProtectedAppPage>
+            <Hangouts />
+          </ProtectedAppPage>
+        }
+      />
+
+      <Route
+        path="/match"
+        element={
+          <ProtectedAppPage>
+            <Match />
+          </ProtectedAppPage>
+        }
+      />
+
+      <Route
+        path="/chats"
+        element={
+          <ProtectedAppPage>
+            <MainChat />
+          </ProtectedAppPage>
+        }
+      />
+
+      <Route
+        path="/chat/:chatId"
+        element={
+          <ProtectedAppPage>
+            <ChatConversation />
+          </ProtectedAppPage>
+        }
+      />
+
+      <Route
+        path="/profile"
+        element={
+          <ProtectedAppPage>
+            <Profile />
+          </ProtectedAppPage>
+        }
+      />
+
+      <Route
+        path="/profile/:uid"
+        element={
+          <ProtectedAppPage>
+            <Profile />
+          </ProtectedAppPage>
+        }
+      />
+
+      <Route
+        path="/hangout-chat/:hangoutId"
+        element={
+          <ProtectedAppPage>
+            <HangoutChatConversation />
+          </ProtectedAppPage>
+        }
+      />
+
+      <Route
+        path="*"
+        element={<Login />}
+      />
+    </Routes>
+  );
+}
+
+/* -------------------------------------------------------
+   APP
+------------------------------------------------------- */
+
 function App() {
   return (
     <FirebaseAuthProvider>
       <Router>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
+        <style>
+          {`
+            @keyframes limiPageEnter {
+              from {
+                opacity: 0;
+              }
 
-          <Route
-            path="/onboarding"
-            element={
-              <ProtectedRoute requireOnboarding={false}>
-                <Onboarding />
-              </ProtectedRoute>
+              to {
+                opacity: 1;
+              }
             }
-          />
 
-          <Route
-            path="/verify"
-            element={
-              <ProtectedAppPage>
-                <Verify />
-              </ProtectedAppPage>
+            .limi-page-transition {
+              animation:
+                limiPageEnter
+                240ms
+                ease-out;
             }
-          />
 
-          <Route
-            path="/"
-            element={
-              <ProtectedAppPage>
-                <Feed />
-              </ProtectedAppPage>
+            @media (prefers-reduced-motion: reduce) {
+              .limi-page-transition {
+                animation: none;
+              }
             }
-          />
+          `}
+        </style>
 
-          <Route
-            path="/reels"
-            element={
-              <ProtectedAppPage>
-                <Reels />
-              </ProtectedAppPage>
-            }
-          />
-
-          <Route
-            path="/hangouts"
-            element={
-              <ProtectedAppPage>
-                <Hangouts />
-              </ProtectedAppPage>
-            }
-          />
-
-          <Route
-            path="/match"
-            element={
-              <ProtectedAppPage>
-                <Match />
-              </ProtectedAppPage>
-            }
-          />
-
-          <Route
-            path="/chats"
-            element={
-              <ProtectedAppPage>
-                <MainChat />
-              </ProtectedAppPage>
-            }
-          />
-
-          <Route
-            path="/chat/:chatId"
-            element={
-              <ProtectedAppPage>
-                <ChatConversation />
-              </ProtectedAppPage>
-            }
-          />
-
-          <Route
-            path="/profile"
-            element={
-              <ProtectedAppPage>
-                <Profile />
-              </ProtectedAppPage>
-            }
-          />
-
-          <Route
-            path="/profile/:uid"
-            element={
-              <ProtectedAppPage>
-                <Profile />
-              </ProtectedAppPage>
-            }
-          /> 
-
-
-          <Route
-            path="/hangout-chat/:hangoutId"
-            element={
-              <ProtectedAppPage>
-                <HangoutChatConversation />
-              </ProtectedAppPage>
-            }
-          />
-
-
-
-          <Route path="*" element={<Login />} />
-        </Routes>
+        <AppRoutes />
       </Router>
     </FirebaseAuthProvider>
   );

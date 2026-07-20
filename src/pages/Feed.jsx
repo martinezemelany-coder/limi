@@ -9,6 +9,8 @@ import React, {
   useState,
 } from "react";
 
+import { createPortal } from "react-dom"; 
+
 import {
   useNavigate,
 } from "react-router-dom";
@@ -29,7 +31,6 @@ import {
   Share2,
   Sparkles,
   Trash2,
-  Upload,
   X,
 } from "lucide-react";
 
@@ -109,7 +110,9 @@ const feedGroups = {
     "Other",
   ],
 
-  Other: ["Other"],
+  Other: [
+    "Other",
+  ],
 };
 
 /* -------------------------------------------------------
@@ -119,12 +122,13 @@ const feedGroups = {
 const postTypes = {
   general: {
     label: "Share",
+    shortLabel: "Share",
     fullLabel: "General",
     emoji: "✨",
     icon: Sparkles,
 
     gradient:
-      "from-[#ee8eb1] via-[#e979a6] to-[#d95f98]",
+      "from-[#f45c9b] via-[#ed72aa] to-[#fa899c]",
 
     softBackground:
       "bg-[#fff2f7]",
@@ -147,24 +151,25 @@ const postTypes = {
 
   question: {
     label: "Ask",
+    shortLabel: "Ask",
     fullLabel: "Question",
     emoji: "❓",
     icon: HelpCircle,
 
     gradient:
-      "from-[#8fd8e8] via-[#f6c7b4] to-[#e9a6c4]",
+      "from-[#68c9df] via-[#74cfdd] to-[#8ad8d7]",
 
     softBackground:
-      "bg-[#fff4fa]",
+      "bg-[#f0fbfd]",
 
     border:
-      "border-[#eccfe2]",
+      "border-[#caebf0]",
 
     badgeBackground:
-      "bg-[#f8e8f5]",
+      "bg-[#e2f8fb]",
 
     badgeText:
-      "text-[#b867a2]",
+      "text-[#368fa6]",
 
     buttonText:
       "Ask Question",
@@ -175,12 +180,13 @@ const postTypes = {
 
   hangout: {
     label: "Make Plans",
+    shortLabel: "Plans",
     fullLabel: "Hangout",
     emoji: "📍",
     icon: MapPin,
 
     gradient:
-      "from-[#f5aaab] via-[#f18f9f] to-[#e87991]",
+      "from-[#f8aa7f] via-[#fa9691] to-[#ef79a5]",
 
     softBackground:
       "bg-[#fff3f1]",
@@ -202,11 +208,25 @@ const postTypes = {
   },
 };
 
-/* -------------------------------------------------------
-   FILTERS
-------------------------------------------------------- */
+const createOptions = [
+  {
+    type: "general",
+    label: "Share",
+    icon: Sparkles,
+  },
+  {
+    type: "question",
+    label: "Ask",
+    icon: HelpCircle,
+  },
+  {
+    type: "hangout",
+    label: "Plans",
+    icon: MapPin,
+  },
+];
 
-const feedFilters = [
+const primaryFeedFilters = [
   {
     label: "All",
     type: "all",
@@ -222,14 +242,6 @@ const feedFilters = [
   {
     label: "Plans",
     type: "hangout",
-  },
-  {
-    label: "Saved",
-    type: "saved",
-  },
-  {
-    label: "Mine",
-    type: "mine",
   },
 ];
 
@@ -701,23 +713,83 @@ function ModalShell({
   title,
   children,
 }) {
-  if (!open) {
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const previousOverflow =
+      document.body.style.overflow;
+
+    document.body.style.overflow =
+      "hidden";
+
+    const handleEscape = (
+      event
+    ) => {
+      if (
+        event.key ===
+        "Escape"
+      ) {
+        onClose();
+      }
+    };
+
+    window.addEventListener(
+      "keydown",
+      handleEscape
+    );
+
+    return () => {
+      document.body.style.overflow =
+        previousOverflow;
+
+      window.removeEventListener(
+        "keydown",
+        handleEscape
+      );
+    };
+  }, [open, onClose]);
+
+  if (
+    !open ||
+    typeof document ===
+      "undefined"
+  ) {
     return null;
   }
 
-  return (
-    <div className="fixed inset-0 z-[180] flex items-end justify-center bg-black/45 px-3 sm:items-center">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-[#2c1621]/45 px-3 pt-8 backdrop-blur-[3px] sm:items-center sm:p-4">
+      {/* BACKDROP */}
+
       <button
         type="button"
         aria-label="Close modal"
         onClick={onClose}
-        className="absolute inset-0"
+        className="absolute inset-0 cursor-default"
       />
 
-      <div className="relative z-10 max-h-[94vh] w-full max-w-md overflow-y-auto rounded-t-[34px] bg-[#fff8fb] p-5 shadow-2xl sm:rounded-[34px]">
-        <div className="mb-5 flex items-center justify-between gap-3">
+      {/* MODAL PANEL */}
+
+      <div
+        className="relative z-10 flex max-h-[94dvh] w-full max-w-md flex-col overflow-hidden rounded-t-[34px] border border-white/80 bg-[#fffafd]/95 shadow-[0_-25px_90px_rgba(90,35,65,0.30)] backdrop-blur-2xl sm:max-h-[90vh] sm:rounded-[34px]"
+        style={{
+          animation:
+            "limiModalEnter 280ms cubic-bezier(0.22, 1, 0.36, 1)",
+        }}
+      >
+        {/* MOBILE HANDLE */}
+
+        <div className="flex shrink-0 justify-center pb-1 pt-3 sm:hidden">
+          <div className="h-1.5 w-11 rounded-full bg-[#decbd4]" />
+        </div>
+
+        {/* HEADER */}
+
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#f2e0e8] bg-white/80 px-5 py-4 backdrop-blur-xl">
           <h2
-            className="text-3xl leading-none tracking-[-0.05em] text-[#ec64a8]"
+            className="text-3xl leading-none tracking-[-0.05em] text-[#e85fa3]"
             style={{
               fontWeight: 1000,
             }}
@@ -728,15 +800,21 @@ function ModalShell({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#ffe4ef] text-[#d94b93]"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white bg-[#ffe7f0] text-[#d94b93] shadow-sm transition duration-200 active:scale-95"
+            aria-label="Close"
           >
             <X size={20} />
           </button>
         </div>
 
-        {children}
+        {/* SCROLLABLE CONTENT */}
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[max(36px,env(safe-area-inset-bottom))] pt-5">
+          {children}
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -753,7 +831,7 @@ function ProfileAvatar({
     size === "small"
       ? "h-10 w-10 text-xs"
       : size === "large"
-        ? "h-14 w-14 text-lg"
+        ? "h-[58px] w-[58px] text-lg"
         : "h-12 w-12 text-sm";
 
   if (photoURL) {
@@ -761,14 +839,14 @@ function ProfileAvatar({
       <img
         src={photoURL}
         alt={name || "Profile"}
-        className={`${sizeClasses} shrink-0 rounded-full object-cover`}
+        className={`${sizeClasses} shrink-0 rounded-full border-2 border-white/80 object-cover shadow-sm`}
       />
     );
   }
 
   return (
     <div
-      className={`${sizeClasses} flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#f5a2bc] via-[#ef87ad] to-[#d94b93] font-black text-white`}
+      className={`${sizeClasses} flex shrink-0 items-center justify-center rounded-full border-2 border-white/70 bg-gradient-to-br from-[#f5a2bc] via-[#ef87ad] to-[#d94b93] font-black text-white shadow-sm`}
     >
       {getInitials(
         name || "L"
@@ -790,7 +868,7 @@ function ImagePreviewModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[240] flex items-center justify-center bg-black/85 p-4">
+    <div className="fixed inset-0 z-[240] flex items-center justify-center bg-[#140a10]/90 p-4 backdrop-blur-md">
       <button
         type="button"
         aria-label="Close image"
@@ -801,7 +879,7 @@ function ImagePreviewModal({
       <button
         type="button"
         onClick={onClose}
-        className="absolute right-5 top-5 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur"
+        className="absolute right-5 top-5 z-20 flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-white/15 text-white shadow-lg backdrop-blur-xl transition active:scale-95"
       >
         <X size={22} />
       </button>
@@ -809,8 +887,204 @@ function ImagePreviewModal({
       <img
         src={imageURL}
         alt="Preview"
-        className="relative z-10 max-h-[86vh] max-w-full rounded-[28px] object-contain"
+        className="relative z-10 max-h-[86vh] max-w-full rounded-[30px] object-contain shadow-[0_30px_90px_rgba(0,0,0,0.42)]"
+        style={{
+          animation:
+            "limiImageEnter 300ms cubic-bezier(0.22, 1, 0.36, 1)",
+        }}
       />
+    </div>
+  );
+}
+
+/* -------------------------------------------------------
+   PREMIUM CREATE CONTROL
+------------------------------------------------------- */
+
+function PremiumCreateControl({
+  activeType,
+  onSelect,
+}) {
+  const selectedIndex =
+    Math.max(
+      createOptions.findIndex(
+        (option) =>
+          option.type ===
+          activeType
+      ),
+      0
+    );
+
+  const activeDetails =
+    postTypes[activeType] ||
+    postTypes.general;
+
+  return (
+    <section className="relative">
+      <div className="relative overflow-hidden rounded-[30px] border border-white/90 bg-white/75 p-2 shadow-[0_16px_45px_rgba(210,103,150,0.16)] backdrop-blur-2xl">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/90 via-white/30 to-[#ffeaf3]/50" />
+
+        <div
+          className={`pointer-events-none absolute bottom-2 left-2 top-2 rounded-[23px] bg-gradient-to-br ${activeDetails.gradient} shadow-[0_12px_28px_rgba(218,83,145,0.25)]`}
+          style={{
+            width:
+              "calc((100% - 16px) / 3)",
+
+            transform: `translateX(${selectedIndex * 100}%)`,
+
+            transition:
+              "transform 300ms cubic-bezier(0.22, 1, 0.36, 1)",
+          }}
+        />
+
+        <div className="relative z-10 grid grid-cols-3">
+          {createOptions.map(
+            ({
+              type,
+              label,
+              icon: Icon,
+            }) => {
+              const active =
+                activeType === type;
+
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() =>
+                    onSelect(type)
+                  }
+                  className={`flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-[23px] px-2 transition duration-300 active:scale-[0.97] ${
+                    active
+                      ? "text-white"
+                      : "text-[#765f6b]"
+                  }`}
+                >
+                  <span
+                    className={`flex h-8 w-8 items-center justify-center rounded-full transition duration-300 ${
+                      active
+                        ? "bg-white/20"
+                        : "bg-[#fff1f6]"
+                    }`}
+                  >
+                    <Icon
+                      size={18}
+                      strokeWidth={2.3}
+                    />
+                  </span>
+
+                  <span className="text-[12px] font-black">
+                    {label}
+                  </span>
+                </button>
+              );
+            }
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* -------------------------------------------------------
+   PREMIUM FEED FILTER
+------------------------------------------------------- */
+
+function PremiumFeedFilter({
+  activeFilter,
+  onChange,
+}) {
+  const activePrimaryIndex =
+    primaryFeedFilters.findIndex(
+      (filter) =>
+        filter.type ===
+        activeFilter
+    );
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="relative min-w-0 flex-1 overflow-hidden rounded-full border border-[#f0dce5] bg-white/80 p-1.5 shadow-[0_8px_24px_rgba(201,120,151,0.1)] backdrop-blur-xl">
+        {activePrimaryIndex >=
+          0 && (
+          <div
+            className="pointer-events-none absolute bottom-1.5 left-1.5 top-1.5 rounded-full bg-gradient-to-r from-[#f49aba] via-[#ee78aa] to-[#f7859b] shadow-[0_7px_18px_rgba(218,83,145,0.2)]"
+            style={{
+              width:
+                "calc((100% - 12px) / 4)",
+
+              transform: `translateX(${activePrimaryIndex * 100}%)`,
+
+              transition:
+                "transform 300ms cubic-bezier(0.22, 1, 0.36, 1)",
+            }}
+          />
+        )}
+
+        <div className="relative z-10 grid grid-cols-4">
+          {primaryFeedFilters.map(
+            (filter) => {
+              const active =
+                activeFilter ===
+                filter.type;
+
+              return (
+                <button
+                  key={filter.type}
+                  type="button"
+                  onClick={() =>
+                    onChange(
+                      filter.type
+                    )
+                  }
+                  className={`rounded-full px-1 py-2.5 text-[12px] font-black transition duration-300 ${
+                    active
+                      ? "text-white"
+                      : "text-[#735e69]"
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              );
+            }
+          )}
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() =>
+          onChange("saved")
+        }
+        aria-label="Saved posts"
+        className={`flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full border shadow-[0_8px_24px_rgba(201,120,151,0.1)] backdrop-blur-xl transition duration-300 active:scale-95 ${
+          activeFilter === "saved"
+            ? "border-transparent bg-gradient-to-br from-[#f49aba] to-[#e768a4] text-white"
+            : "border-[#f0dce5] bg-white/80 text-[#826b77]"
+        }`}
+      >
+        <Bookmark
+          size={18}
+          fill={
+            activeFilter === "saved"
+              ? "currentColor"
+              : "none"
+          }
+        />
+      </button>
+
+      <button
+        type="button"
+        onClick={() =>
+          onChange("mine")
+        }
+        className={`flex h-[46px] shrink-0 items-center justify-center rounded-full border px-3.5 text-[11px] font-black shadow-[0_8px_24px_rgba(201,120,151,0.1)] backdrop-blur-xl transition duration-300 active:scale-95 ${
+          activeFilter === "mine"
+            ? "border-transparent bg-gradient-to-br from-[#f49aba] to-[#e768a4] text-white"
+            : "border-[#f0dce5] bg-white/80 text-[#826b77]"
+        }`}
+      >
+        Mine
+      </button>
     </div>
   );
 }
@@ -827,7 +1101,7 @@ function CreatePostModal({
 }) {
   const [
     postType,
-    setPostType
+    setPostType,
   ] = useState(
     postTypes[defaultType]
       ? defaultType
@@ -875,7 +1149,12 @@ function CreatePostModal({
       return;
     }
 
-    setPostType("general");
+    const nextType =
+      postTypes[defaultType]
+        ? defaultType
+        : "general";
+
+    setPostType(nextType);
     setText("");
     setImageFile(null);
     setPreviewURL("");
@@ -886,7 +1165,10 @@ function CreatePostModal({
     );
 
     setUploading(false);
-  }, [open, defaultType]);
+  }, [
+    open,
+    defaultType,
+  ]);
 
   useEffect(() => {
     if (!imageFile) {
@@ -1092,59 +1374,81 @@ function CreatePostModal({
           onClose();
         }
       }}
-      title="Create a Post"
+      title={
+        postType === "question"
+          ? "Ask Something"
+          : postType === "hangout"
+            ? "Make Plans"
+            : "Share Something"
+      }
     >
       <form
         onSubmit={submitPost}
         className="space-y-5"
       >
-        <div className="grid grid-cols-3 gap-2">
-          {Object.entries(
-            postTypes
-          ).map(
-            ([
-              typeKey,
-              type,
-            ]) => {
-              const Icon =
-                type.icon;
+        <div className="relative overflow-hidden rounded-[27px] border border-[#f0dce5] bg-white/80 p-1.5 shadow-sm">
+          <div
+            className={`pointer-events-none absolute bottom-1.5 left-1.5 top-1.5 rounded-[21px] bg-gradient-to-br ${selectedType.gradient} shadow-md`}
+            style={{
+              width:
+                "calc((100% - 12px) / 3)",
 
-              const active =
-                postType ===
-                typeKey;
+              transform: `translateX(${
+                Math.max(
+                  createOptions.findIndex(
+                    (option) =>
+                      option.type ===
+                      postType
+                  ),
+                  0
+                ) * 100
+              }%)`,
 
-              return (
-                <button
-                  key={typeKey}
-                  type="button"
-                  onClick={() =>
-                    setPostType(
-                      typeKey
-                    )
-                  }
-                  className={`rounded-[22px] border px-2 py-3 text-center transition ${
-                    active
-                      ? `border-transparent bg-gradient-to-br ${type.gradient} text-white shadow-md`
-                      : "border-[#f1dce5] bg-white text-[#80636f]"
-                  }`}
-                >
-                  <Icon
-                    size={19}
-                    className="mx-auto"
-                  />
+              transition:
+                "transform 300ms cubic-bezier(0.22, 1, 0.36, 1)",
+            }}
+          />
 
-                  <p className="mt-2 text-xs font-black">
-                    {type.label}
-                  </p>
-                </button>
-              );
-            }
-          )}
+          <div className="relative z-10 grid grid-cols-3">
+            {createOptions.map(
+              ({
+                type,
+                label,
+                icon: Icon,
+              }) => {
+                const active =
+                  postType === type;
+
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() =>
+                      setPostType(type)
+                    }
+                    className={`flex min-h-[64px] flex-col items-center justify-center gap-1.5 rounded-[21px] px-1 transition duration-300 ${
+                      active
+                        ? "text-white"
+                        : "text-[#80636f]"
+                    }`}
+                  >
+                    <Icon
+                      size={18}
+                    />
+
+                    <span className="text-[11px] font-black">
+                      {label}
+                    </span>
+                  </button>
+                );
+              }
+            )}
+          </div>
         </div>
 
         {postType ===
           "hangout" && (
-          <div className="flex items-start gap-3 rounded-[22px] bg-[#fff0ed] p-4">
+          <div className="flex items-start gap-3 rounded-[22px] border border-[#f7d6cf] bg-[#fff1ed] p-4">
             <Clock3
               size={18}
               className="mt-0.5 shrink-0 text-[#dc726d]"
@@ -1160,7 +1464,7 @@ function CreatePostModal({
         )}
 
         <div
-          className={`rounded-[26px] border ${selectedType.border} ${selectedType.softBackground} p-4`}
+          className={`rounded-[28px] border ${selectedType.border} ${selectedType.softBackground} p-4 shadow-inner`}
         >
           <textarea
             rows={5}
@@ -1183,11 +1487,17 @@ function CreatePostModal({
         </div>
 
         {previewURL && (
-          <div className="relative overflow-hidden rounded-[28px] bg-[#fff0f6]">
+          <div
+            className="relative overflow-hidden rounded-[30px] border border-white bg-[#fff0f6] shadow-[0_18px_45px_rgba(124,66,92,0.16)]"
+            style={{
+              animation:
+                "limiImageEnter 260ms cubic-bezier(0.22, 1, 0.36, 1)",
+            }}
+          >
             <img
               src={previewURL}
               alt="Post preview"
-              className="max-h-[380px] w-full object-cover"
+              className="max-h-[420px] w-full object-cover"
             />
 
             <button
@@ -1195,14 +1505,14 @@ function CreatePostModal({
               onClick={() =>
                 setImageFile(null)
               }
-              className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur"
+              className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-white shadow-lg backdrop-blur-md transition active:scale-95"
             >
               <X size={18} />
             </button>
           </div>
         )}
 
-        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-[22px] border border-[#f1d8e3] bg-white px-4 py-4 text-sm font-black text-[#d94b93] shadow-sm">
+        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-[22px] border border-[#f1d8e3] bg-white px-4 py-4 text-sm font-black text-[#d94b93] shadow-sm transition duration-200 hover:bg-[#fff8fb] active:scale-[0.99]">
           <Camera size={18} />
 
           {imageFile
@@ -1283,7 +1593,7 @@ function CreatePostModal({
         <button
           type="submit"
           disabled={uploading}
-          className={`flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r ${selectedType.gradient} py-4 text-lg font-black text-white shadow-[0_10px_24px_rgba(231,91,150,0.24)] disabled:opacity-60`}
+          className={`flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r ${selectedType.gradient} py-4 text-lg font-black text-white shadow-[0_14px_30px_rgba(231,91,150,0.24)] transition duration-200 active:scale-[0.985] disabled:opacity-60`}
         >
           {uploading ? (
             <>
@@ -1324,13 +1634,13 @@ function CommentImage({
       onClick={() =>
         onOpen(imageURL)
       }
-      className="mt-3 block overflow-hidden rounded-[18px] bg-[#f7edf2]"
+      className="mt-3 block overflow-hidden rounded-[20px] border border-[#f5e2ea] bg-[#f7edf2] shadow-sm transition duration-300 active:scale-[0.98]"
     >
       <img
         src={imageURL}
         alt="Comment attachment"
         loading="lazy"
-        className="max-h-[190px] w-auto max-w-[180px] object-cover"
+        className="max-h-[210px] w-auto max-w-[190px] object-cover transition duration-500 hover:scale-[1.02]"
       />
     </button>
   );
@@ -1361,7 +1671,7 @@ function CommentRow({
       currentUser?.uid;
 
   return (
-    <div className="rounded-[24px] bg-white p-4 shadow-sm">
+    <div className="rounded-[26px] border border-white/90 bg-white/90 p-4 shadow-[0_10px_26px_rgba(192,105,144,0.08)] backdrop-blur-xl">
       <div className="flex items-start gap-3">
         <button
           type="button"
@@ -1370,7 +1680,7 @@ function CommentRow({
               comment.uid
             )
           }
-          className="shrink-0"
+          className="shrink-0 transition active:scale-95"
         >
           <ProfileAvatar
             photoURL={
@@ -1419,7 +1729,7 @@ function CommentRow({
                         comment
                       )
                     }
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-[#fff5f8] text-[#c884a1]"
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-[#fff5f8] text-[#c884a1] transition duration-200 active:scale-90"
                     aria-label="Report comment"
                   >
                     <Flag size={15} />
@@ -1434,7 +1744,7 @@ function CommentRow({
                         comment
                       )
                     }
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-red-50 text-red-500"
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-red-50 text-red-500 transition duration-200 active:scale-90"
                     aria-label="Delete comment"
                   >
                     <Trash2
@@ -1967,11 +2277,12 @@ function CommentsModal({
                 )
               )
             ) : (
-              <div className="rounded-[28px] bg-white p-8 text-center shadow-sm">
-                <MessageCircle
-                  size={38}
-                  className="mx-auto text-[#f089b0]"
-                />
+              <div className="rounded-[30px] border border-white/90 bg-white/90 p-8 text-center shadow-[0_12px_30px_rgba(192,105,144,0.08)] backdrop-blur-xl">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#fff0f6] text-[#f089b0]">
+                  <MessageCircle
+                    size={27}
+                  />
+                </div>
 
                 <h3 className="mt-4 text-xl font-black text-[#e85da2]">
                   No comments yet
@@ -1987,11 +2298,17 @@ function CommentsModal({
           </div>
 
           {previewURL && (
-            <div className="relative w-fit overflow-hidden rounded-[18px] bg-[#fff0f6]">
+            <div
+              className="relative w-fit overflow-hidden rounded-[20px] border border-white bg-[#fff0f6] shadow-sm"
+              style={{
+                animation:
+                  "limiImageEnter 240ms cubic-bezier(0.22, 1, 0.36, 1)",
+              }}
+            >
               <img
                 src={previewURL}
                 alt="Comment preview"
-                className="max-h-[150px] max-w-[170px] object-cover"
+                className="max-h-[160px] max-w-[180px] object-cover"
               />
 
               <button
@@ -2006,7 +2323,7 @@ function CommentsModal({
                       "";
                   }
                 }}
-                className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur"
+                className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition active:scale-90"
               >
                 <X size={15} />
               </button>
@@ -2017,7 +2334,7 @@ function CommentsModal({
             onSubmit={
               submitComment
             }
-            className="rounded-[26px] border border-[#f2dce6] bg-white p-3 shadow-sm"
+            className="rounded-[28px] border border-[#f2dce6] bg-white/95 p-3 shadow-[0_10px_26px_rgba(192,105,144,0.08)] backdrop-blur-xl"
           >
             <div className="flex items-end gap-2">
               <button
@@ -2028,7 +2345,7 @@ function CommentsModal({
                 disabled={
                   submitting
                 }
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#fff0f6] text-[#d94b93] disabled:opacity-50"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#fff0f6] text-[#d94b93] transition duration-200 active:scale-90 disabled:opacity-50"
                 aria-label="Add image to comment"
               >
                 <ImageIcon
@@ -2053,7 +2370,7 @@ function CommentsModal({
                 }
               />
 
-              <div className="min-w-0 flex-1 rounded-[20px] bg-[#fff7fa] px-4 py-2">
+              <div className="min-w-0 flex-1 rounded-[21px] bg-[#fff7fa] px-4 py-2">
                 <textarea
                   rows={1}
                   maxLength={300}
@@ -2103,7 +2420,7 @@ function CommentsModal({
                   (!commentText.trim() &&
                     !imageFile)
                 }
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] text-white disabled:opacity-40"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] text-white shadow-[0_8px_20px_rgba(231,91,150,0.22)] transition duration-200 active:scale-90 disabled:opacity-40"
               >
                 {submitting ? (
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
@@ -2397,7 +2714,7 @@ function PostMenuModal({
             disabled={
               processing
             }
-            className="flex w-full items-center gap-3 rounded-[22px] bg-white p-4 text-left text-red-500 shadow-sm disabled:opacity-50"
+            className="flex w-full items-center gap-3 rounded-[24px] border border-red-100 bg-white p-4 text-left text-red-500 shadow-sm transition duration-200 active:scale-[0.99] disabled:opacity-50"
           >
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-red-50">
               <Trash2
@@ -2423,7 +2740,7 @@ function PostMenuModal({
             disabled={
               processing
             }
-            className="flex w-full items-center gap-3 rounded-[22px] bg-white p-4 text-left text-[#c56d92] shadow-sm disabled:opacity-50"
+            className="flex w-full items-center gap-3 rounded-[24px] border border-[#f4dce7] bg-white p-4 text-left text-[#c56d92] shadow-sm transition duration-200 active:scale-[0.99] disabled:opacity-50"
           >
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#fff0f6]">
               <Flag size={19} />
@@ -2454,19 +2771,27 @@ function PostActionButton({
   icon,
   label,
   active = false,
+  disabled = false,
   onClick,
+  animationClass = "",
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-2 rounded-full px-3 py-2 text-sm font-black transition ${
+      disabled={disabled}
+      className={`flex items-center gap-2 rounded-full px-3 py-2 text-sm font-black transition duration-200 active:scale-90 disabled:cursor-not-allowed disabled:opacity-60 ${
         active
           ? "bg-[#ffe4ef] text-[#d94b93]"
           : "text-[#90717f] hover:bg-[#fff3f7]"
       }`}
     >
-      {icon}
+      <span
+        className={`flex items-center justify-center ${animationClass}`}
+      >
+        {icon}
+      </span>
+
       <span>{label}</span>
     </button>
   );
@@ -2483,27 +2808,35 @@ function PostCard({
   onOpenMenu,
   onOpenImage,
 }) {
-  const navigate = useNavigate();
+  const navigate =
+    useNavigate();
 
   const typeKey =
-    post.postType || "general";
+    post.postType ||
+    "general";
 
   const type =
     postTypes[typeKey] ||
     postTypes.general;
 
   const likes =
-    Array.isArray(post.likesBy)
+    Array.isArray(
+      post.likesBy
+    )
       ? post.likesBy
       : [];
 
   const saves =
-    Array.isArray(post.savedBy)
+    Array.isArray(
+      post.savedBy
+    )
       ? post.savedBy
       : [];
 
   const comments =
-    Array.isArray(post.comments)
+    Array.isArray(
+      post.comments
+    )
       ? post.comments
       : [];
 
@@ -2525,6 +2858,16 @@ function PostCard({
   const [
     changingSave,
     setChangingSave,
+  ] = useState(false);
+
+  const [
+    likeAnimating,
+    setLikeAnimating,
+  ] = useState(false);
+
+  const [
+    saveAnimating,
+    setSaveAnimating,
   ] = useState(false);
 
   const openProfile = () => {
@@ -2556,6 +2899,19 @@ function PostCard({
 
       try {
         setChangingLike(true);
+
+        if (!liked) {
+          setLikeAnimating(true);
+
+          window.setTimeout(
+            () => {
+              setLikeAnimating(
+                false
+              );
+            },
+            330
+          );
+        }
 
         await updateDoc(
           doc(
@@ -2597,6 +2953,16 @@ function PostCard({
 
       try {
         setChangingSave(true);
+        setSaveAnimating(true);
+
+        window.setTimeout(
+          () => {
+            setSaveAnimating(
+              false
+            );
+          },
+          300
+        );
 
         await updateDoc(
           doc(
@@ -2637,7 +3003,9 @@ function PostCard({
       }`;
 
       try {
-        if (navigator.share) {
+        if (
+          navigator.share
+        ) {
           await navigator.share({
             title:
               "Limi Post",
@@ -2681,21 +3049,31 @@ function PostCard({
     };
 
   return (
-    <article className="overflow-hidden rounded-[34px] bg-white shadow-[0_14px_38px_rgba(239,148,181,0.14)]">
+    <article
+      className="group overflow-hidden rounded-[34px] border border-white/90 bg-white/95 shadow-[0_16px_44px_rgba(205,105,148,0.13)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_55px_rgba(205,105,148,0.17)]"
+      style={{
+        animation:
+          "limiFeedCardEnter 330ms cubic-bezier(0.22, 1, 0.36, 1)",
+      }}
+    >
       {/* TYPE HEADER */}
 
       <div
-        className={`relative overflow-hidden bg-gradient-to-r ${type.gradient} p-5 text-white`}
+        className={`relative overflow-hidden bg-gradient-to-r ${type.gradient} px-5 pb-5 pt-5 text-white`}
       >
-        <div className="absolute -left-16 bottom-[-70px] h-48 w-48 rounded-full bg-white/10" />
+        <div className="absolute -left-16 bottom-[-70px] h-48 w-48 rounded-full bg-white/10 blur-[1px]" />
 
-        <div className="absolute right-[-55px] top-[-55px] h-44 w-44 rounded-full bg-white/10" />
+        <div className="absolute right-[-55px] top-[-55px] h-44 w-44 rounded-full bg-white/10 blur-[1px]" />
+
+        <div className="absolute left-[45%] top-[-80px] h-36 w-36 rounded-full bg-white/10 blur-2xl" />
 
         <div className="relative z-10 flex items-start justify-between gap-3">
           <button
             type="button"
-            onClick={openProfile}
-            className="flex min-w-0 items-center gap-3 text-left"
+            onClick={
+              openProfile
+            }
+            className="flex min-w-0 items-center gap-3 text-left transition active:scale-[0.98]"
           >
             <ProfileAvatar
               photoURL={
@@ -2709,27 +3087,29 @@ function PostCard({
 
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="truncate text-lg font-black">
+                <h3 className="truncate text-[18px] font-black tracking-[-0.02em]">
                   {post.username ||
                     "Limi User"}
                 </h3>
 
                 {post.uid ===
                   currentUser?.uid && (
-                  <span className="rounded-full bg-white/20 px-2 py-1 text-[9px] font-black uppercase backdrop-blur">
+                  <span className="rounded-full border border-white/20 bg-white/20 px-2 py-1 text-[9px] font-black uppercase tracking-wide backdrop-blur-md">
                     You
                   </span>
                 )}
               </div>
 
-              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-bold text-white/85">
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-bold text-white/85">
                 {post.group && (
-                  <span>
+                  <span className="max-w-[130px] truncate">
                     {post.group}
                   </span>
                 )}
 
-                <span>•</span>
+                {post.group && (
+                  <span>•</span>
+                )}
 
                 <span>
                   {formatTime(
@@ -2745,7 +3125,7 @@ function PostCard({
             onClick={() =>
               onOpenMenu(post)
             }
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black/15 text-white backdrop-blur"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-black/10 text-white shadow-sm backdrop-blur-xl transition duration-200 hover:bg-black/15 active:scale-90"
             aria-label="Post options"
           >
             <MoreHorizontal
@@ -2755,15 +3135,21 @@ function PostCard({
         </div>
 
         <div className="relative z-10 mt-5 flex flex-wrap gap-2">
-          <span className="rounded-full bg-white/20 px-3 py-1.5 text-xs font-black backdrop-blur">
+          <span className="rounded-full border border-white/20 bg-white/20 px-3 py-1.5 text-xs font-black shadow-sm backdrop-blur-md">
             {type.emoji}{" "}
             {type.fullLabel}
           </span>
 
+          {post.groupType && (
+            <span className="rounded-full border border-white/15 bg-black/10 px-3 py-1.5 text-xs font-black text-white/90 backdrop-blur-md">
+              {post.groupType}
+            </span>
+          )}
+
           {typeKey ===
             "hangout" &&
             post.expiresAt && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-black/15 px-3 py-1.5 text-xs font-black backdrop-blur">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-black/15 px-3 py-1.5 text-xs font-black backdrop-blur-md">
                 <Clock3
                   size={13}
                 />
@@ -2780,7 +3166,7 @@ function PostCard({
 
       <div className="space-y-4 p-5">
         {post.text && (
-          <p className="whitespace-pre-wrap break-words text-[16px] font-semibold leading-7 text-[#604d57]">
+          <p className="whitespace-pre-wrap break-words text-[16px] font-semibold leading-[1.75] text-[#604d57]">
             {post.text}
           </p>
         )}
@@ -2795,7 +3181,7 @@ function PostCard({
                   post.image
               )
             }
-            className="block w-full overflow-hidden rounded-[28px] bg-[#fff0f6]"
+            className="block w-full overflow-hidden rounded-[30px] border border-[#f8e8ef] bg-[#fff0f6] shadow-[0_10px_30px_rgba(179,103,135,0.11)]"
           >
             <img
               src={
@@ -2804,14 +3190,16 @@ function PostCard({
               }
               alt="Post attachment"
               loading="lazy"
-              className="max-h-[520px] w-full object-cover"
+              className="min-h-[260px] max-h-[560px] w-full object-cover transition duration-500 group-hover:scale-[1.012]"
             />
           </button>
         )}
 
         {post.city && (
-          <div className="inline-flex items-center gap-2 rounded-full bg-[#fff5f9] px-3 py-2 text-xs font-black text-[#9b6b81]">
-            <MapPin size={14} />
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#f7e1ea] bg-[#fff5f9] px-3 py-2 text-xs font-black text-[#9b6b81]">
+            <MapPin
+              size={14}
+            />
 
             {post.city}
           </div>
@@ -2823,13 +3211,23 @@ function PostCard({
           <div className="flex min-w-0 items-center gap-1">
             <PostActionButton
               active={liked}
-              onClick={toggleLike}
+              disabled={
+                changingLike
+              }
+              onClick={
+                toggleLike
+              }
               label={String(
                 likes.length
               )}
+              animationClass={
+                likeAnimating
+                  ? "animate-[limiHeartPop_320ms_cubic-bezier(0.22,1,0.36,1)]"
+                  : ""
+              }
               icon={
                 <Heart
-                  size={19}
+                  size={20}
                   fill={
                     liked
                       ? "currentColor"
@@ -2841,34 +3239,49 @@ function PostCard({
 
             <PostActionButton
               onClick={() =>
-                onOpenComments(post)
+                onOpenComments(
+                  post
+                )
               }
               label={String(
                 comments.length
               )}
               icon={
                 <MessageCircle
-                  size={19}
+                  size={20}
                 />
               }
             />
 
             <PostActionButton
-              onClick={sharePost}
+              onClick={
+                sharePost
+              }
               label="Share"
               icon={
-                <Share2 size={19} />
+                <Share2
+                  size={19}
+                />
               }
             />
           </div>
 
           <button
             type="button"
-            onClick={toggleSave}
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition ${
+            onClick={
+              toggleSave
+            }
+            disabled={
+              changingSave
+            }
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition duration-200 active:scale-90 disabled:opacity-60 ${
               saved
-                ? "bg-[#ffe4ef] text-[#d94b93]"
-                : "bg-[#fff6fa] text-[#967480]"
+                ? "bg-[#ffe4ef] text-[#d94b93] shadow-[0_8px_20px_rgba(217,75,147,0.13)]"
+                : "bg-[#fff6fa] text-[#967480] hover:bg-[#ffedf4]"
+            } ${
+              saveAnimating
+                ? "animate-[limiBookmarkPop_300ms_cubic-bezier(0.22,1,0.36,1)]"
+                : ""
             }`}
             aria-label={
               saved
@@ -2892,86 +3305,105 @@ function PostCard({
 }
 
 /* -------------------------------------------------------
-   CREATE ACTION CARD
+   EMPTY FEED STATE
 ------------------------------------------------------- */
 
-function CreateActionCard({
+function EmptyFeedState({
+  activeFilter,
   onCreate,
 }) {
-  return (
-    <div className="relative overflow-hidden rounded-[36px] bg-white/80 p-5 shadow-[0_12px_35px_rgba(239,148,181,0.14)] backdrop-blur-xl">
-      <div className="absolute -right-14 -top-14 h-40 w-40 rounded-full bg-[#ffe4ef]/70" />
+  const emptyType =
+    activeFilter ===
+    "question"
+      ? "question"
+      : activeFilter ===
+          "hangout"
+        ? "hangout"
+        : "general";
 
-      <div className="absolute -bottom-20 -left-16 h-52 w-52 rounded-full bg-[#fff0f6]/80" />
+  const emptyDetails =
+    postTypes[emptyType];
+
+  let heading =
+    "Nothing here yet";
+
+  let description =
+    "Be the first person to share something in this section.";
+
+  if (
+    activeFilter ===
+    "saved"
+  ) {
+    heading =
+      "No saved posts yet";
+
+    description =
+      "Tap the bookmark on a post to save it here.";
+  }
+
+  if (
+    activeFilter ===
+    "mine"
+  ) {
+    heading =
+      "You haven’t posted yet";
+
+    description =
+      "Share something, ask a question, or make plans with the community.";
+  }
+
+  return (
+    <div
+      className="relative overflow-hidden rounded-[36px] border border-white/90 bg-white/90 p-9 text-center shadow-[0_16px_44px_rgba(205,105,148,0.11)] backdrop-blur-xl"
+      style={{
+        animation:
+          "limiFeedCardEnter 330ms cubic-bezier(0.22, 1, 0.36, 1)",
+      }}
+    >
+      <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-[#fff0f6]" />
+
+      <div className="absolute -right-14 -top-14 h-44 w-44 rounded-full bg-[#ffe8f0]" />
 
       <div className="relative z-10">
-        <div className="text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#f5a8bf] via-[#ef77ae] to-[#f97d8b] text-white shadow-[0_10px_24px_rgba(237,102,157,0.22)]">
-            <Sparkles
-              size={24}
+        <div
+          className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br ${emptyDetails.gradient} text-white shadow-[0_12px_28px_rgba(217,75,147,0.2)]`}
+        >
+          {activeFilter ===
+          "saved" ? (
+            <Bookmark
+              size={27}
             />
-          </div>
-
-          <h1 className="mt-4 text-[30px] font-black leading-none tracking-[-0.05em] text-[#eb6aaa]">
-            Share, ask, or make plans
-          </h1>
-
-          <p className="mx-auto mt-3 max-w-[300px] text-sm font-semibold leading-6 text-[#80636f]">
-            Post an update, ask the
-            community, or find someone
-            to do something with.
-          </p>
-        </div>
-
-        <div className="mt-6 grid grid-cols-3 gap-3">
-          {[
-            {
-              key: "general",
-              label: "Share",
-              icon: Sparkles,
-            },
-            {
-              key: "question",
-              label: "Ask",
-              icon: HelpCircle,
-            },
-            {
-              key: "hangout",
-              label:
-                "Make Plans",
-              icon: MapPin,
-            },
-          ].map(
-            ({
-              key,
-              label,
-              icon: Icon,
-            }) => {
-              const type =
-                postTypes[key];
-
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() =>
-                    onCreate(key)
-                  }
-                  className={`rounded-[24px] bg-gradient-to-br ${type.gradient} px-2 py-4 text-center text-white shadow-sm transition active:scale-[0.98]`}
-                >
-                  <Icon
-                    size={21}
-                    className="mx-auto"
-                  />
-
-                  <p className="mt-2 text-xs font-black">
-                    {label}
-                  </p>
-                </button>
-              );
-            }
+          ) : (
+            <Sparkles
+              size={27}
+            />
           )}
         </div>
+
+        <h3 className="mt-5 text-2xl font-black tracking-[-0.04em] text-[#e85da2]">
+          {heading}
+        </h3>
+
+        <p className="mx-auto mt-3 max-w-[270px] text-sm font-semibold leading-6 text-[#80636f]">
+          {description}
+        </p>
+
+        {activeFilter !==
+          "saved" && (
+          <button
+            type="button"
+            onClick={() =>
+              onCreate(
+                emptyType
+              )
+            }
+            className={`mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r ${emptyDetails.gradient} py-4 font-black text-white shadow-[0_12px_28px_rgba(231,91,150,0.2)] transition duration-200 active:scale-[0.985]`}
+          >
+            <Plus size={18} />
+
+            Create a Post
+          </button>
+        )}
       </div>
     </div>
   );
@@ -3013,6 +3445,11 @@ export default function Feed() {
   ] = useState("general");
 
   const [
+    selectedCreateType,
+    setSelectedCreateType,
+  ] = useState("general");
+
+  const [
     commentsPost,
     setCommentsPost,
   ] = useState(null);
@@ -3037,6 +3474,7 @@ export default function Feed() {
         async (user) => {
           if (!user) {
             setCurrentUser(null);
+            setLoading(false);
             return;
           }
 
@@ -3052,11 +3490,14 @@ export default function Feed() {
               "Could not load current feed user:",
               error
             );
+
+            setCurrentUser(null);
           }
         }
       );
 
-    return () => unsubscribe();
+    return () =>
+      unsubscribe();
   }, []);
 
   /* -------------------------------------------------------
@@ -3064,43 +3505,84 @@ export default function Feed() {
   ------------------------------------------------------- */
 
   useEffect(() => {
-    const postsQuery = query(
-      collection(db, "posts"),
-      orderBy("createdAt", "desc")
-    );
+    const postsQuery =
+      query(
+        collection(
+          db,
+          "posts"
+        ),
+        orderBy(
+          "createdAt",
+          "desc"
+        )
+      );
 
-    const unsubscribe = onSnapshot(
-      postsQuery,
-      (snapshot) => {
-        const loadedPosts =
-          snapshot.docs
-            .map(
-              (postDocument) => ({
-                id:
-                  postDocument.id,
+    const unsubscribe =
+      onSnapshot(
+        postsQuery,
+        (snapshot) => {
+          const loadedPosts =
+            snapshot.docs
+              .map(
+                (
+                  postDocument
+                ) => ({
+                  id:
+                    postDocument.id,
 
-                ...postDocument.data(),
-              })
-            )
-            .filter(
-              isPostVisible
-            );
+                  ...postDocument.data(),
+                })
+              )
+              .filter(
+                isPostVisible
+              );
 
-        setPosts(loadedPosts);
-        setLoading(false);
-      },
-      (error) => {
-        console.error(
-          "Could not load feed:",
-          error
-        );
+          setPosts(
+            loadedPosts
+          );
 
-        setPosts([]);
-        setLoading(false);
-      }
-    );
+          setLoading(false);
+        },
+        (error) => {
+          console.error(
+            "Could not load feed:",
+            error
+          );
 
-    return () => unsubscribe();
+          setPosts([]);
+          setLoading(false);
+        }
+      );
+
+    return () =>
+      unsubscribe();
+  }, []);
+
+  /* -------------------------------------------------------
+     REMOVE EXPIRED PLAN POSTS FROM VIEW
+  ------------------------------------------------------- */
+
+  useEffect(() => {
+    const interval =
+      window.setInterval(
+        () => {
+          setPosts(
+            (
+              currentPosts
+            ) =>
+              currentPosts.filter(
+                isPostVisible
+              )
+          );
+        },
+        60 * 1000
+      );
+
+    return () => {
+      window.clearInterval(
+        interval
+      );
+    };
   }, []);
 
   /* -------------------------------------------------------
@@ -3108,7 +3590,9 @@ export default function Feed() {
   ------------------------------------------------------- */
 
   useEffect(() => {
-    if (commentsPost?.id) {
+    if (
+      commentsPost?.id
+    ) {
       const updatedPost =
         posts.find(
           (post) =>
@@ -3119,6 +3603,10 @@ export default function Feed() {
       if (updatedPost) {
         setCommentsPost(
           updatedPost
+        );
+      } else {
+        setCommentsPost(
+          null
         );
       }
     }
@@ -3134,6 +3622,10 @@ export default function Feed() {
       if (updatedPost) {
         setMenuPost(
           updatedPost
+        );
+      } else {
+        setMenuPost(
+          null
         );
       }
     }
@@ -3182,7 +3674,10 @@ export default function Feed() {
         return posts.filter(
           (post) =>
             post.uid ===
-            currentUser.uid
+              currentUser.uid ||
+            (post.userEmail &&
+              post.userEmail ===
+                currentUser.email)
         );
       }
 
@@ -3198,74 +3693,194 @@ export default function Feed() {
       currentUser,
     ]);
 
+  /* -------------------------------------------------------
+     CREATE MODAL
+  ------------------------------------------------------- */
+
   const openCreateModal = (
     type = "general"
   ) => {
-    setDefaultCreateType(type);
+    const validType =
+      postTypes[type]
+        ? type
+        : "general";
+
+    setSelectedCreateType(
+      validType
+    );
+
+    setDefaultCreateType(
+      validType
+    );
+
     setCreateOpen(true);
   };
+
+  const handleCreateSelection = (
+    type
+  ) => {
+    openCreateModal(type);
+  };
+
+  /* -------------------------------------------------------
+     LOADING STATE
+  ------------------------------------------------------- */
 
   if (
     loading ||
     !currentUser
   ) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#fff6fa] px-5 pb-28">
-        <div className="w-full max-w-md rounded-[34px] bg-white p-9 text-center shadow-sm">
-          <div className="mx-auto h-11 w-11 animate-spin rounded-full border-4 border-[#f7c5d7] border-t-[#eb6aaa]" />
+      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,#fff0f6_0%,#fff8fb_42%,#fff6fa_100%)] px-5 pb-28">
+        <style>
+          {`
+            @keyframes limiLoadingPulse {
+              0%, 100% {
+                transform: scale(1);
+                opacity: 0.7;
+              }
 
-          <p className="mt-4 font-black text-[#80636f]">
-            Loading your feed...
-          </p>
+              50% {
+                transform: scale(1.08);
+                opacity: 1;
+              }
+            }
+          `}
+        </style>
+
+        <div className="relative w-full max-w-md overflow-hidden rounded-[36px] border border-white/90 bg-white/85 p-9 text-center shadow-[0_24px_60px_rgba(200,105,145,0.14)] backdrop-blur-2xl">
+          <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-[#ffe5ef]" />
+
+          <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-[#fff0f6]" />
+
+          <div className="relative z-10">
+            <div className="relative mx-auto h-16 w-16">
+              <div
+                className="absolute inset-0 rounded-full bg-[#f7bfd4]/50"
+                style={{
+                  animation:
+                    "limiLoadingPulse 1.3s ease-in-out infinite",
+                }}
+              />
+
+              <div className="absolute inset-[8px] animate-spin rounded-full border-4 border-[#f8d1df] border-t-[#eb6aaa]" />
+            </div>
+
+            <p className="mt-5 font-black text-[#80636f]">
+              Loading your feed...
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-[#fff6fa] pb-36">
-      <div className="mx-auto max-w-md px-4 pt-5">
-        {/* CREATION CARD */}
+  /* -------------------------------------------------------
+     PAGE
+  ------------------------------------------------------- */
 
-        <CreateActionCard
-          onCreate={
-            openCreateModal
+  return (
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#fff0f6_0%,#fff8fb_38%,#fff6fa_100%)] pb-36">
+      <style>
+        {`
+          @keyframes limiModalEnter {
+            from {
+              opacity: 0;
+              transform: translateY(28px) scale(0.97);
+            }
+
+            to {
+              opacity: 1;
+              transform: translateY(0) scale(1);
+            }
+          }
+
+          @keyframes limiImageEnter {
+            from {
+              opacity: 0;
+              transform: scale(0.94);
+            }
+
+            to {
+              opacity: 1;
+              transform: scale(1);
+            }
+          }
+
+          @keyframes limiFeedCardEnter {
+            from {
+              opacity: 0;
+              transform: translateY(18px);
+            }
+
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+
+          @keyframes limiHeartPop {
+            0% {
+              transform: scale(1);
+            }
+
+            35% {
+              transform: scale(1.42) rotate(-8deg);
+            }
+
+            65% {
+              transform: scale(0.88) rotate(4deg);
+            }
+
+            100% {
+              transform: scale(1) rotate(0);
+            }
+          }
+
+          @keyframes limiBookmarkPop {
+            0% {
+              transform: scale(1);
+            }
+
+            45% {
+              transform: scale(1.28) translateY(-2px);
+            }
+
+            100% {
+              transform: scale(1) translateY(0);
+            }
+          }
+        `}
+      </style>
+
+      <div className="mx-auto max-w-md px-4 pt-4">
+        {/* CREATE SEGMENTED CONTROL */}
+
+        <PremiumCreateControl
+          activeType={
+            selectedCreateType
+          }
+          onSelect={
+            handleCreateSelection
           }
         />
 
-        {/* FILTERS */}
+        {/* FEED FILTERS */}
 
-        <div className="mt-5 overflow-x-auto pb-1">
-          <div className="flex min-w-max gap-3">
-            {feedFilters.map(
-              (filter) => (
-                <button
-                  key={
-                    filter.type
-                  }
-                  type="button"
-                  onClick={() =>
-                    setActiveFilter(
-                      filter.type
-                    )
-                  }
-                  className={`rounded-full px-5 py-3 text-sm font-black transition ${
-                    activeFilter ===
-                    filter.type
-                      ? "bg-gradient-to-r from-[#f29dbc] to-[#f06aa8] text-white shadow-sm"
-                      : "border border-[#f1d8e3] bg-white/80 text-[#6f5d66] backdrop-blur"
-                  }`}
-                >
-                  {filter.label}
-                </button>
-              )
-            )}
-          </div>
+        <div className="sticky top-0 z-40 -mx-4 mt-4 border-b border-white/40 bg-[#fff6fa]/80 px-4 pb-3 pt-2 backdrop-blur-2xl">
+          <PremiumFeedFilter
+            activeFilter={
+              activeFilter
+            }
+            onChange={
+              setActiveFilter
+            }
+          />
         </div>
 
         {/* POSTS */}
 
-        <main className="mt-6 space-y-6">
+        <main className="mt-5 space-y-6">
           {filteredPosts.length ? (
             filteredPosts.map(
               (post) => (
@@ -3288,67 +3903,19 @@ export default function Feed() {
               )
             )
           ) : (
-            <div className="relative overflow-hidden rounded-[36px] bg-white p-10 text-center shadow-sm">
-              <div className="absolute -left-14 -bottom-14 h-44 w-44 rounded-full bg-[#fff0f6]" />
-
-              <div className="absolute -right-14 -top-14 h-40 w-40 rounded-full bg-[#ffe8f0]" />
-
-              <div className="relative z-10">
-                <Sparkles
-                  size={44}
-                  className="mx-auto text-[#f089b0]"
-                />
-
-                <h3 className="mt-4 text-2xl font-black text-[#e85da2]">
-                  Nothing here yet
-                </h3>
-
-                <p className="mx-auto mt-3 max-w-[260px] text-sm font-semibold leading-6 text-[#80636f]">
-                  Be the first person
-                  to share something in
-                  this section.
-                </p>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    openCreateModal(
-                      activeFilter ===
-                        "question"
-                        ? "question"
-                        : activeFilter ===
-                            "hangout"
-                          ? "hangout"
-                          : "general"
-                    )
-                  }
-                  className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-4 font-black text-white"
-                >
-                  <Plus size={18} />
-                  Create a Post
-                </button>
-              </div>
-            </div>
+            <EmptyFeedState
+              activeFilter={
+                activeFilter
+              }
+              onCreate={
+                openCreateModal
+              }
+            />
           )}
         </main>
       </div>
 
-      {/* FLOATING CREATE BUTTON */}
-
-      <button
-        type="button"
-        onClick={() =>
-          openCreateModal(
-            "general"
-          )
-        }
-        className="fixed bottom-28 right-5 z-[70] flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#f5a8bf] via-[#ef77ae] to-[#f97d8b] text-white shadow-[0_12px_28px_rgba(217,75,147,0.35)]"
-        aria-label="Create post"
-      >
-        <Plus size={25} />
-      </button>
-
-      {/* CREATE */}
+      {/* CREATE POST MODAL */}
 
       <CreatePostModal
         open={createOpen}
@@ -3363,22 +3930,26 @@ export default function Feed() {
         }
       />
 
-      {/* COMMENTS */}
+      {/* COMMENTS MODAL */}
 
       <CommentsModal
         open={Boolean(
           commentsPost
         )}
         onClose={() =>
-          setCommentsPost(null)
+          setCommentsPost(
+            null
+          )
         }
-        post={commentsPost}
+        post={
+          commentsPost
+        }
         currentUser={
           currentUser
         }
       />
 
-      {/* OPTIONS */}
+      {/* POST OPTIONS MODAL */}
 
       <PostMenuModal
         open={Boolean(
@@ -3393,7 +3964,7 @@ export default function Feed() {
         }
       />
 
-      {/* IMAGE PREVIEW */}
+      {/* FULL IMAGE PREVIEW */}
 
       <ImagePreviewModal
         imageURL={

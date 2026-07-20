@@ -84,9 +84,9 @@ const starterFilters = [
 ];
 
 const hangoutThemes = {
-  rose: {
+  lagoon: {
     card:
-      "bg-gradient-to-br from-[#f09abd] via-[#eb7eaa] to-[#dc6795]",
+      "bg-gradient-to-br from-[#4ed6d3] via-[#73e2d8] to-[#a6f1e5]",
 
     circles: [
       "-right-16 -top-16 h-52 w-52 bg-white/10",
@@ -95,9 +95,9 @@ const hangoutThemes = {
     ],
   },
 
-  coral: {
+  mango: {
     card:
-      "bg-gradient-to-br from-[#f3a0ad] via-[#ed839d] to-[#dc6b8e]",
+      "bg-gradient-to-br from-[#fec66a] via-[#ffab72] to-[#ff8e87]",
 
     circles: [
       "-left-20 -top-16 h-60 w-60 bg-[#ffd8d1]/20",
@@ -106,9 +106,9 @@ const hangoutThemes = {
     ],
   },
 
-  peach: {
+  glimmer: {
     card:
-      "bg-gradient-to-br from-[#f2aa9d] via-[#ed9299] to-[#df7896]",
+      "bg-gradient-to-br from-[#ee99c5] via-[#f195b5] to-[#f895a5]",
 
     circles: [
       "right-[-55px] top-[22%] h-48 w-48 bg-[#ffe1d6]/20",
@@ -117,9 +117,9 @@ const hangoutThemes = {
     ],
   },
 
-  sakura: {
+  sunset: {
     card:
-      "bg-gradient-to-br from-[#ee9fc4] via-[#e788b7] to-[#d76fa5]",
+      "bg-gradient-to-br from-[#f8aa7f] via-[#fa9691] to-[#ef79a5]",
 
     circles: [
       "-left-12 top-[25%] h-40 w-40 bg-white/10",
@@ -128,9 +128,9 @@ const hangoutThemes = {
     ],
   },
 
-  berry: {
+  hibiscus: {
     card:
-      "bg-gradient-to-br from-[#e889a9] via-[#db6f95] to-[#c95482]",
+      "bg-gradient-to-br from-[#f45c9b] via-[#ed72aa] to-[#fa899c]",
 
     circles: [
       "left-[12%] -top-20 h-52 w-52 bg-[#f7cde4]/15",
@@ -139,9 +139,9 @@ const hangoutThemes = {
     ],
   },
 
-  blush: {
+  bahama: {
     card:
-      "bg-gradient-to-br from-[#f3a5bb] via-[#ec8baa] to-[#dd729b]",
+      "bg-gradient-to-br from-[#68c9df] via-[#74cfdd] to-[#8ad8d7]",
 
     circles: [
       "-right-10 top-[12%] h-36 w-36 bg-white/10",
