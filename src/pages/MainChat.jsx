@@ -687,13 +687,23 @@ function ChatCard({
       type="button"
       onClick={onClick}
       className="
+w-full
 rounded-[24px]
 bg-white/80
 backdrop-blur-lg
 border border-white/60
 shadow-[0_8px_25px_rgba(236,100,168,0.08)]
+px-4
+py-5
+text-left
 transition
+duration-300
+ease-out
+hover:-translate-y-0.5
 hover:scale-[1.01]
+hover:shadow-[0_14px_34px_rgba(236,100,168,0.13)]
+active:translate-y-0
+active:scale-[0.985]
 "
     >
       <div className="flex items-center gap-4">
@@ -2964,7 +2974,26 @@ if (
       <div className="mx-auto max-w-md px-4 pt-5">
         {/* HEADER CARD */}
 
-        <div className="relative overflow-hidden rounded-[38px] bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] p-5 text-white shadow-[0_12px_35px_rgba(237,102,157,0.22)]">
+        <div
+  className="
+relative
+overflow-hidden
+rounded-[38px]
+bg-gradient-to-r
+from-[#f4a1bd]
+via-[#f38cad]
+to-[#fb8f9f]
+p-5
+text-white
+shadow-[0_12px_35px_rgba(237,102,157,0.22)]
+transition-all
+duration-300
+ease-out
+hover:-translate-y-1
+hover:scale-[1.01]
+hover:shadow-[0_18px_45px_rgba(237,102,157,0.28)]
+"
+>
           <div className="absolute -left-14 bottom-[-70px] h-48 w-48 rounded-full bg-white/10" />
 
           <div className="absolute right-[-45px] top-[-55px] h-48 w-48 rounded-full bg-white/10" />
@@ -3064,7 +3093,26 @@ if (
               onClick={() =>
                 setFindFriendsOpen(true)
               }
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-white py-3.5 text-sm font-black text-[#d94b93]"
+              className="
+mt-4
+flex
+w-full
+items-center
+justify-center
+gap-2
+rounded-full
+bg-white
+py-3.5
+text-sm
+font-black
+text-[#d94b93]
+transition-all
+duration-300
+ease-out
+hover:-translate-y-0.5
+hover:scale-[1.02]
+active:scale-[0.98]
+"
             >
               <UserPlus size={17} />
               Find More Friends

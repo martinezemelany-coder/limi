@@ -1873,6 +1873,11 @@ export default function Reels() {
     setReels,
   ] = useState([]);
 
+  const [
+    reelProfiles,
+    setReelProfiles,
+  ] = useState({});
+
   const [
     loading,
     setLoading,
@@ -1987,6 +1992,95 @@ export default function Reels() {
     return () => unsubscribe();
   }, []);
 
+/* -------------------------------------------------------
+   LOAD CURRENT PROFILE INFORMATION FOR REEL OWNERS
+------------------------------------------------------- */
+
+useEffect(() => {
+  const loadReelProfiles = async () => {
+    const uniqueUserIds = [
+      ...new Set(
+        reels
+          .map((reel) => reel.uid)
+          .filter(Boolean)
+      ),
+    ];
+
+    if (!uniqueUserIds.length) {
+      setReelProfiles({});
+      return;
+    }
+
+    try {
+      const profileEntries =
+        await Promise.all(
+          uniqueUserIds.map(
+            async (uid) => {
+              const profileSnapshot =
+                await getDoc(
+                  doc(
+                    db,
+                    "users",
+                    uid
+                  )
+                );
+
+              if (
+                !profileSnapshot.exists()
+              ) {
+                return [
+                  uid,
+                  null,
+                ];
+              }
+
+              const profileData =
+                profileSnapshot.data();
+
+              return [
+                uid,
+                {
+                  name:
+                    getProfileName(
+                      profileData
+                    ),
+
+                  photoURL:
+                    getProfilePhoto(
+                      profileData
+                    ),
+
+                  city:
+                    profileData.city ||
+                    profileData
+                      .displayLocation ||
+                    profileData.location
+                      ?.displayLocation ||
+                    profileData.location
+                      ?.city ||
+                    "",
+                },
+              ];
+            }
+          )
+        );
+
+      setReelProfiles(
+        Object.fromEntries(
+          profileEntries
+        )
+      );
+    } catch (error) {
+      console.error(
+        "Could not load reel owner profiles:",
+        error
+      );
+    }
+  };
+
+  loadReelProfiles();
+}, [reels]);
+
   /* -------------------------------------------------------
      KEEP OPEN MODALS LIVE
 
@@ -2090,26 +2184,50 @@ export default function Reels() {
       {reels.length ? (
         <main className="mx-auto h-[calc(100svh-6.5rem)] max-w-md snap-y snap-mandatory overflow-y-auto bg-black px-2">
           <div className="space-y-3 py-2">
-            {reels.map(
-              (reel) => (
-                <ReelCard
-                  key={reel.id}
-                  reel={reel}
-                  currentUser={
-                    currentUser
-                  }
-                  onOpenComments={
-                    setCommentsReel
-                  }
-                  onOpenMenu={
-                    setMenuReel
-                  }
-                  onOpenProfile={
-                    openProfile
-                  }
-                />
-              )
-            )}
+           {reels.map((reel) => {
+  const ownerProfile =
+    reelProfiles[reel.uid];
+
+  const reelWithCurrentProfile = {
+    ...reel,
+
+    username:
+      ownerProfile?.name ||
+      reel.username ||
+      "Limi User",
+
+    photoURL:
+      ownerProfile?.photoURL ||
+      reel.photoURL ||
+      "",
+
+    city:
+      ownerProfile?.city ||
+      reel.city ||
+      "",
+  };
+
+  return (
+    <ReelCard
+      key={reel.id}
+      reel={
+        reelWithCurrentProfile
+      }
+      currentUser={
+        currentUser
+      }
+      onOpenComments={
+        setCommentsReel
+      }
+      onOpenMenu={
+        setMenuReel
+      }
+      onOpenProfile={
+        openProfile
+      }
+    />
+  );
+})}
           </div>
         </main>
       ) : (
@@ -2152,21 +2270,7 @@ export default function Reels() {
         </div>
       )}
 
-      {/* FLOATING POST BUTTON */}
-
-      {reels.length > 0 && (
-        <button
-          type="button"
-          onClick={() =>
-            setCreateOpen(true)
-          }
-          className="fixed bottom-28 left-1/2 z-[75] flex -translate-x-1/2 items-center gap-2 rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] px-6 py-3.5 text-sm font-black text-white shadow-[0_12px_30px_rgba(217,75,147,0.38)]"
-        >
-          <Plus size={18} />
-          Post
-        </button>
-      )}
-
+   
       {/* CREATE REEL */}
 
       <CreateReelModal

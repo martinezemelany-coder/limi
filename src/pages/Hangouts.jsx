@@ -84,9 +84,9 @@ const starterFilters = [
 ];
 
 const hangoutThemes = {
-  lagoon: {
+  palm: {
     card:
-      "bg-gradient-to-br from-[#4ed6d3] via-[#73e2d8] to-[#a6f1e5]",
+      "bg-gradient-to-br from-[#ff6eb2] via-[#ff91b7] to-[#87cb63]",
 
     circles: [
       "-right-16 -top-16 h-52 w-52 bg-white/10",
@@ -95,9 +95,9 @@ const hangoutThemes = {
     ],
   },
 
-  mango: {
+  orchid: {
     card:
-      "bg-gradient-to-br from-[#fec66a] via-[#ffab72] to-[#ff8e87]",
+      "bg-gradient-to-br from-[#d878cf] via-[#e57cbf] to-[#f28aa9]",
 
     circles: [
       "-left-20 -top-16 h-60 w-60 bg-[#ffd8d1]/20",
@@ -108,7 +108,7 @@ const hangoutThemes = {
 
   glimmer: {
     card:
-      "bg-gradient-to-br from-[#ee99c5] via-[#f195b5] to-[#f895a5]",
+      "bg-gradient-to-br from-[#ffa8e4] via-[#fb9dbd] to-[#f892a5]",
 
     circles: [
       "right-[-55px] top-[22%] h-48 w-48 bg-[#ffe1d6]/20",
@@ -130,7 +130,7 @@ const hangoutThemes = {
 
   hibiscus: {
     card:
-      "bg-gradient-to-br from-[#f45c9b] via-[#ed72aa] to-[#fa899c]",
+      "bg-gradient-to-br from-[#f4416d] via-[#ed78aa] to-[#fa949c]",
 
     circles: [
       "left-[12%] -top-20 h-52 w-52 bg-[#f7cde4]/15",
@@ -141,7 +141,7 @@ const hangoutThemes = {
 
   bahama: {
     card:
-      "bg-gradient-to-br from-[#68c9df] via-[#74cfdd] to-[#8ad8d7]",
+      "bg-gradient-to-br from-[#68c9df] via-[#74cfdd] to-[#c3fbf2]",
 
     circles: [
       "-right-10 top-[12%] h-36 w-36 bg-white/10",
@@ -2250,7 +2250,26 @@ function HangoutCard({
   }
 
   return (
-    <div className="overflow-hidden rounded-[36px] bg-white shadow-[0_12px_35px_rgba(239,148,181,0.14)]">
+    <div
+  className="
+    group
+    overflow-hidden
+    rounded-[36px]
+    bg-white
+    shadow-[0_12px_35px_rgba(239,148,181,0.14)]
+
+    transition
+    duration-300
+    ease-out
+
+    hover:-translate-y-1
+    hover:scale-[1.006]
+    hover:shadow-[0_22px_52px_rgba(205,105,148,0.19)]
+
+    active:translate-y-0
+    active:scale-[0.995]
+  "
+>
       <div
   className={`relative min-h-[250px] overflow-hidden p-7 text-white ${cardTheme.card}`}
 >
@@ -2327,14 +2346,38 @@ function HangoutCard({
             )}
           </div>
 
-          <h3 className="mt-4 text-[2.2rem] font-black leading-tight tracking-[-0.05em]">
-            {item.title}
-          </h3>
+          <div className="mt-4 flex items-center gap-3">
+  {item.hostPhotoURL ? (
+    <img
+      src={item.hostPhotoURL}
+      alt={item.host || "Host"}
+      className="h-14 w-14 shrink-0 rounded-full border-2 border-white/70 object-cover shadow-[0_8px_20px_rgba(75,35,55,0.18)]"
+    />
+  ) : (
+    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 border-white/70 bg-white/20 text-lg font-black text-white shadow-[0_8px_20px_rgba(75,35,55,0.18)] backdrop-blur-md">
+      {item.hostAvatar ||
+        item.host
+          ?.charAt(0)
+          ?.toUpperCase() ||
+        "L"}
+    </div>
+  )}
 
-          <p className="mt-3 text-lg font-black text-white/90">
-            {item.displayGroup ||
-              item.group}
-          </p>
+  <div className="min-w-0 flex-1">
+    <h3 className="truncate text-[2.05rem] font-black leading-tight tracking-[-0.05em]">
+      {item.title}
+    </h3>
+
+    <p className="mt-1 truncate text-sm font-bold text-white/80">
+      Hosted by {item.host || "Limi Host"}
+    </p>
+  </div>
+</div>
+
+<p className="mt-3 text-lg font-black text-white/90">
+  {item.displayGroup ||
+    item.group}
+</p>
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-3">
@@ -3646,31 +3689,63 @@ export default function Hangouts() {
       <div className="mx-auto max-w-md px-4 pt-5">
         {/* HERO / HEADER */}
 
-        <div className="relative overflow-hidden rounded-[40px] bg-gradient-to-br from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] px-5 pb-6 pt-7 text-white shadow-[0_14px_36px_rgba(239,148,181,0.22)]">
-          {/* Decorative background circles */}
+<div
+  className="
+    relative
+    overflow-hidden
+    rounded-[40px]
+    border border-white/80
+    bg-white/10
+    px-5 pb-6 pt-7
+    backdrop-blur-[42px]
+    backdrop-saturate-[180%]
+    shadow-[inset_0_2px_1px_rgba(255,255,255,0.95),inset_0_-1px_1px_rgba(255,255,255,0.30),0_18px_42px_rgba(122,73,98,0.14)]
+    transition
+    duration-300
+    ease-out
+    hover:-translate-y-1
+    hover:scale-[1.005]
+    hover:shadow-[inset_0_2px_1px_rgba(255,255,255,1),inset_0_-1px_1px_rgba(255,255,255,0.38),0_24px_55px_rgba(122,73,98,0.18)]
+    active:translate-y-0
+    active:scale-[0.992]
+  "
+>
 
-          <div className="pointer-events-none absolute -left-14 bottom-[-70px] h-48 w-48 rounded-full bg-white/10" />
+   {/* Strong top glass shine */}
+<div className="pointer-events-none absolute inset-x-5 top-0 h-[3px] rounded-full bg-white/95 blur-[0.4px]" />
 
-          <div className="pointer-events-none absolute right-[-55px] top-[-55px] h-48 w-48 rounded-full bg-white/15" />
+{/* Bright curved top reflection */}
+<div className="pointer-events-none absolute -left-8 -top-16 h-40 w-[85%] rotate-[-5deg] rounded-[50%] bg-gradient-to-b from-white/65 via-white/20 to-transparent blur-xl" />
 
-          <div className="pointer-events-none absolute left-[48%] top-[-75px] h-36 w-36 rounded-full bg-white/5" />
+{/* Right-side edge shine */}
+<div className="pointer-events-none absolute bottom-12 right-0 top-16 w-[2px] bg-gradient-to-b from-transparent via-white/75 to-transparent" />
+
+{/* Inner glass rim */}
+<div className="pointer-events-none absolute inset-[1px] rounded-[39px] ring-1 ring-inset ring-white/50" />
+
+{/* Soft bottom reflection */}
+<div className="pointer-events-none absolute inset-x-8 bottom-0 h-[2px] rounded-full bg-white/40" />
+
+<div className="pointer-events-none absolute right-[-80px] top-[-80px] h-72 w-72 rounded-full bg-white/15 blur-3xl" />
+
+<div className="pointer-events-none absolute left-[46%] -top-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
 
           <div className="relative z-10">
             <div className="text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white/20 text-white shadow-[0_10px_24px_rgba(91,35,62,0.13)] backdrop-blur-md">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-white/45 text-[#df5d9a] shadow-[0_10px_24px_rgba(91,35,62,0.10)] backdrop-blur-xl">
                 <MapPin size={25} />
               </div>
 
               <h1
-                className="mt-4 text-[40px] leading-none tracking-[-0.05em] text-white"
-                style={{
-                  fontWeight: 1000,
-                }}
-              >
+  className="mt-4 text-[40px] leading-none tracking-[-0.05em] bg-gradient-to-r from-[#ee78b3] via-[#ea6ca7] to-[#e45f99] bg-clip-text text-transparent"
+  style={{
+    fontWeight: 1000,
+  }}
+>
                 Make some plans
               </h1>
 
-              <p className="mx-auto mt-3 max-w-[320px] text-sm font-semibold leading-6 text-white/90">
+              <p className="mx-auto mt-3 max-w-[320px] text-sm font-semibold leading-6 text-[#80636f]">
                 Find nearby people to study, eat, explore, or have a cute day
                 out with.
               </p>
@@ -3681,7 +3756,29 @@ export default function Hangouts() {
             <button
               type="button"
               onClick={() => setCreateOpen(true)}
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-full border border-white/30 bg-white py-4 text-lg font-black text-[#e65f9f] shadow-[0_12px_24px_rgba(100,35,65,0.16)] transition active:scale-[0.99]"
+              className="
+  mt-6
+  flex w-full items-center justify-center gap-2
+  rounded-full
+  border border-white/55
+  bg-white/35
+  py-4
+  text-lg font-black text-[#e65f9f]
+  shadow-[0_12px_24px_rgba(100,35,65,0.16)]
+  backdrop-blur-2xl
+
+  transition
+  duration-300
+  ease-out
+
+  hover:-translate-y-1
+  hover:scale-[1.01]
+  hover:bg-white/45
+  hover:shadow-[0_18px_34px_rgba(100,35,65,0.20)]
+
+  active:translate-y-0
+  active:scale-[0.985]
+"
             >
               <Plus size={20} />
               Create Hangout
@@ -3704,7 +3801,7 @@ export default function Hangouts() {
                     className={`shrink-0 whitespace-nowrap rounded-full border px-5 py-3 text-sm font-black transition ${
                       active
                         ? "border-white bg-white text-[#df5d9a] shadow-sm"
-                        : "border-white/25 bg-white/15 text-white backdrop-blur-md"
+                        : "border-white/55 bg-white/35 text-[#80636f] backdrop-blur-xl"
                     }`}
                   >
                     {filter.emoji} {filter.label}
