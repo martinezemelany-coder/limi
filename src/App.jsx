@@ -23,6 +23,7 @@ import MainChat from "./pages/MainChat";
 import ChatConversation from "./pages/ChatConversation";
 import HangoutChatConversation from "./pages/HangoutChatConversation";
 import Verify from "./pages/Verify";
+import LimiPlus from "./pages/LimiPlus";
 
 import {
   Newspaper,
@@ -248,6 +249,15 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      <Route
+  path="/limi-plus"
+  element={
+    <ProtectedRoute requireOnboarding={false}>
+      <LimiPlus />
+    </ProtectedRoute>
+  }
+/>
 
       <Route
         path="/verify"

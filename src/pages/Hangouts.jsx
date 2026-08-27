@@ -84,16 +84,6 @@ const starterFilters = [
 ];
 
 const hangoutThemes = {
-  palm: {
-    card:
-      "bg-gradient-to-br from-[#ff6eb2] via-[#ff91b7] to-[#87cb63]",
-
-    circles: [
-      "-right-16 -top-16 h-52 w-52 bg-white/10",
-      "-bottom-20 -left-16 h-60 w-60 bg-[#ffd4e5]/20",
-      "left-[42%] top-[38%] h-28 w-28 bg-white/5",
-    ],
-  },
 
   orchid: {
     card:
@@ -130,7 +120,7 @@ const hangoutThemes = {
 
   hibiscus: {
     card:
-      "bg-gradient-to-br from-[#f4416d] via-[#ed78aa] to-[#fa949c]",
+      "bg-gradient-to-br from-[#f45c9b] via-[#ed72aa] to-[#fa899c]",
 
     circles: [
       "left-[12%] -top-20 h-52 w-52 bg-[#f7cde4]/15",
