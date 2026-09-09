@@ -64,15 +64,9 @@ export default function Login() {
      existing   = email already exists
   ------------------------------------------------------- */
 
-  const [
-    emailOpen,
-    setEmailOpen,
-  ] = useState(false);
+const [emailOpen, setEmailOpen] = useState(false);
 
-  const [
-    mode,
-    setMode,
-  ] = useState("email");
+const [mode, setMode] = useState("email");
 
   const [
     email,
@@ -1295,36 +1289,7 @@ export default function Login() {
               "plan" && (
               <div>
 
-                {/* HEADER */}
-
-                <div className="text-center">
-
-                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#fff0f7] text-[#d94b93]">
-
-                    <Sparkles
-                      size={
-                        27
-                      }
-                    />
-
-                  </div>
-
-                  <h2
-                    className="mt-4 text-[28px] leading-tight tracking-[-0.04em] text-[#2b1d28]"
-                    style={{
-                      fontWeight:
-                        1000,
-                    }}
-                  >
-                    You're in 💕
-                  </h2>
-
-                  <p className="mt-2 text-sm font-semibold leading-5 text-[#80636f]">
-                    Choose how you want
-                    to start Limi.
-                  </p>
-
-                </div>
+              
 
                 {/* ------------------------------------------------
                     FREE CARD

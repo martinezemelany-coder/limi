@@ -5,10 +5,18 @@ import React, {
   useState,
 } from "react";
 
+import { Capacitor } from "@capacitor/core";
+
+import {
+  FirebaseAuthentication,
+} from "@capacitor-firebase/authentication";
+
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithCredential,
+  GoogleAuthProvider,
   signOut,
   sendPasswordResetEmail,
   onAuthStateChanged,
@@ -28,8 +36,45 @@ import {
   db,
 } from "./firebase";
 
+/* -------------------------------------------------------
+   CONTEXT
+------------------------------------------------------- */
+
 const FirebaseAuthContext =
   createContext();
+
+/* -------------------------------------------------------
+   SAFE LOCAL STORAGE
+
+   Keeps localStorage from ever blocking
+   Limi startup inside Capacitor.
+------------------------------------------------------- */
+
+function safeSetLoggedIn(
+  value
+) {
+  try {
+    if (value) {
+      window.localStorage.setItem(
+        "isLoggedIn",
+        "true"
+      );
+    } else {
+      window.localStorage.removeItem(
+        "isLoggedIn"
+      );
+    }
+  } catch (error) {
+    console.warn(
+      "Local storage unavailable:",
+      error
+    );
+  }
+}
+
+/* -------------------------------------------------------
+   PROVIDER
+------------------------------------------------------- */
 
 export function FirebaseAuthProvider({
   children,
@@ -39,16 +84,19 @@ export function FirebaseAuthProvider({
     setCurrentUser,
   ] = useState(null);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
   /* -------------------------------------------------------
      SIGN UP
 
-     ALL users begin as free.
+     Every Limi account starts free.
 
-     Choosing Limi+ NEVER grants Plus here.
-     Only a verified purchase will do that later.
+     Limi+ is NEVER granted here.
+     A real verified subscription will
+     change membership later.
   ------------------------------------------------------- */
 
   const signup = async (
@@ -63,21 +111,25 @@ export function FirebaseAuthProvider({
       );
 
     try {
-      const userRef = doc(
-        db,
-        "users",
-        result.user.uid
-      );
+      const userRef =
+        doc(
+          db,
+          "users",
+          result.user.uid
+        );
 
       await setDoc(
         userRef,
         {
-          uid: result.user.uid,
+          uid:
+            result.user.uid,
 
           email:
-            result.user.email || "",
+            result.user.email ||
+            "",
 
-          membership: "free",
+          membership:
+            "free",
 
           createdAt:
             serverTimestamp(),
@@ -89,23 +141,22 @@ export function FirebaseAuthProvider({
           merge: true,
         }
       );
-    } catch (err) {
+    } catch (error) {
       console.error(
         "Failed to create user doc:",
-        err
+        error
       );
     }
 
-    localStorage.setItem(
-      "isLoggedIn",
-      "true"
+    safeSetLoggedIn(
+      true
     );
 
     return result;
   };
 
   /* -------------------------------------------------------
-     LOGIN
+     EMAIL LOGIN
   ------------------------------------------------------- */
 
   const login = async (
@@ -119,62 +170,141 @@ export function FirebaseAuthProvider({
         password
       );
 
-    localStorage.setItem(
-      "isLoggedIn",
-      "true"
+    safeSetLoggedIn(
+      true
     );
 
     return result;
   };
 
   /* -------------------------------------------------------
-     GOOGLE
+     GOOGLE LOGIN
+
+     WEB:
+     Uses normal Firebase popup.
+
+     CAPACITOR / IOS:
+     Uses native Google login first,
+     then hands the Google credential
+     to Firebase JS Auth.
+
+     This means the SAME currentUser
+     system continues powering Limi.
   ------------------------------------------------------- */
 
   const loginWithGoogle =
     async () => {
-      const result =
-        await signInWithPopup(
-          auth,
-          googleProvider
-        );
+      let result;
+
+      /* ---------------------------------------------------
+         NATIVE IOS / CAPACITOR
+      --------------------------------------------------- */
+
+      if (
+        Capacitor.isNativePlatform()
+      ) {
+        const nativeResult =
+          await FirebaseAuthentication.signInWithGoogle();
+
+        const idToken =
+          nativeResult
+            .credential
+            ?.idToken;
+
+        const accessToken =
+          nativeResult
+            .credential
+            ?.accessToken;
+
+        if (!idToken) {
+          throw new Error(
+            "Google Sign-In did not return an ID token."
+          );
+        }
+
+        const credential =
+          GoogleAuthProvider.credential(
+            idToken,
+            accessToken ||
+              undefined
+          );
+
+        /*
+          This signs the native Google
+          account into the Firebase JS
+          auth instance Limi already uses.
+        */
+
+        result =
+          await signInWithCredential(
+            auth,
+            credential
+          );
+      }
+
+      /* ---------------------------------------------------
+         NORMAL WEB / VERCEL
+      --------------------------------------------------- */
+
+      else {
+        result =
+          await signInWithPopup(
+            auth,
+            googleProvider
+          );
+      }
+
+      /* ---------------------------------------------------
+         ENSURE FIRESTORE USER DOCUMENT
+
+         users/{uid} remains the shared
+         Limi profile source of truth.
+      --------------------------------------------------- */
 
       try {
-        const userRef = doc(
-          db,
-          "users",
-          result.user.uid
-        );
+        const userRef =
+          doc(
+            db,
+            "users",
+            result.user.uid
+          );
 
         const snap =
-          await getDoc(userRef);
+          await getDoc(
+            userRef
+          );
 
         if (!snap.exists()) {
-          await setDoc(userRef, {
-            uid: result.user.uid,
+          await setDoc(
+            userRef,
+            {
+              uid:
+                result.user.uid,
 
-            email:
-              result.user.email || "",
+              email:
+                result.user.email ||
+                "",
 
-            membership: "free",
+              membership:
+                "free",
 
-            createdAt:
-              serverTimestamp(),
+              createdAt:
+                serverTimestamp(),
 
-            updatedAt:
-              serverTimestamp(),
-          });
+              updatedAt:
+                serverTimestamp(),
+            }
+          );
         }
-      } catch (err) {
+      } catch (error) {
         console.error(
           "Failed to ensure user doc for Google user:",
-          err
+          error
         );
       }
 
-      localStorage.setItem(
-        "isLoggedIn",
-        "true"
+      safeSetLoggedIn(
+        true
       );
 
       return result;
@@ -184,29 +314,49 @@ export function FirebaseAuthProvider({
      LOGOUT
   ------------------------------------------------------- */
 
-  const logout = async () => {
-    await signOut(auth);
+  const logout =
+    async () => {
+      /*
+        Sign out native Google session
+        too when running in Capacitor.
+      */
 
-    localStorage.removeItem(
-      "isLoggedIn"
-    );
-  };
+      if (
+        Capacitor.isNativePlatform()
+      ) {
+        try {
+          await FirebaseAuthentication.signOut();
+        } catch (error) {
+          console.warn(
+            "Native Firebase sign out warning:",
+            error
+          );
+        }
+      }
+
+      await signOut(
+        auth
+      );
+
+      safeSetLoggedIn(
+        false
+      );
+    };
 
   /* -------------------------------------------------------
      PASSWORD RESET
   ------------------------------------------------------- */
 
-  const resetPassword = async (
-    email
-  ) => {
-    return await sendPasswordResetEmail(
-      auth,
-      email
-    );
-  };
+  const resetPassword =
+    async (email) => {
+      return await sendPasswordResetEmail(
+        auth,
+        email
+      );
+    };
 
   /* -------------------------------------------------------
-     EMAIL METHODS
+     CHECK EMAIL METHODS
   ------------------------------------------------------- */
 
   const checkEmailMethods =
@@ -219,32 +369,92 @@ export function FirebaseAuthProvider({
 
   /* -------------------------------------------------------
      AUTH LISTENER
+
+     This is still the main source
+     of truth for signed-in state.
   ------------------------------------------------------- */
 
   useEffect(() => {
+    console.log(
+      "🔥 Starting Firebase auth listener..."
+    );
+
     const unsubscribe =
       onAuthStateChanged(
         auth,
+
         (user) => {
-          setCurrentUser(user);
+          console.log(
+            "🔥 Firebase auth resolved:",
+            user
+              ? user.uid
+              : "No user"
+          );
 
-          if (user) {
-            localStorage.setItem(
-              "isLoggedIn",
-              "true"
-            );
-          } else {
-            localStorage.removeItem(
-              "isLoggedIn"
-            );
-          }
+          setCurrentUser(
+            user || null
+          );
 
-          setLoading(false);
+          safeSetLoggedIn(
+            Boolean(user)
+          );
+
+          setLoading(
+            false
+          );
+        },
+
+        (error) => {
+          /*
+            Never leave Limi permanently
+            stuck on its loading screen.
+          */
+
+          console.error(
+            "🔥 Firebase auth listener failed:",
+            error
+          );
+
+          setCurrentUser(
+            null
+          );
+
+          setLoading(
+            false
+          );
         }
       );
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+    };
   }, []);
+
+  /* -------------------------------------------------------
+     LOADING SCREEN
+  ------------------------------------------------------- */
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#fff6fa]">
+
+        <div className="text-center">
+
+          <div className="mx-auto h-10 w-10 animate-pulse rounded-full bg-gradient-to-br from-[#f4a1bd] via-[#ee79a5] to-[#e25a97]" />
+
+          <p className="mt-4 text-lg font-black text-[#d94b93]">
+            Opening Limi...
+          </p>
+
+        </div>
+
+      </div>
+    );
+  }
+
+  /* -------------------------------------------------------
+     PROVIDER
+  ------------------------------------------------------- */
 
   return (
     <FirebaseAuthContext.Provider
@@ -259,10 +469,14 @@ export function FirebaseAuthProvider({
         checkEmailMethods,
       }}
     >
-      {!loading && children}
+      {children}
     </FirebaseAuthContext.Provider>
   );
 }
+
+/* -------------------------------------------------------
+   HOOK
+------------------------------------------------------- */
 
 export function useFirebaseAuth() {
   return useContext(

@@ -24,6 +24,9 @@ import ChatConversation from "./pages/ChatConversation";
 import HangoutChatConversation from "./pages/HangoutChatConversation";
 import Verify from "./pages/Verify";
 import LimiPlus from "./pages/LimiPlus";
+import Privacy from "./pages/Privacy";
+import About from "./pages/About";
+import Terms from "./pages/Terms";
 
 import {
   Newspaper,
@@ -257,6 +260,21 @@ function AppRoutes() {
       <LimiPlus />
     </ProtectedRoute>
   }
+/>
+
+<Route
+  path="/privacy"
+  element={<Privacy />}
+/>
+
+<Route
+  path="/about"
+  element={<About />}
+/>
+
+<Route
+  path="/terms"
+  element={<Terms />}
 />
 
       <Route

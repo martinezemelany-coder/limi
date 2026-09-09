@@ -36,6 +36,7 @@ import {
   Mail,
   ChevronRight,
   Scale,
+  Crown,
 } from "lucide-react";
 
 import {
@@ -146,23 +147,13 @@ const vibeOptions = [
 
 /* -------------------------------------------------------
    DEFAULT PROFILE
-
-   IMPORTANT:
-   Membership uses the new Limi system:
-
-   free
-   plus
-
-   We no longer use:
-   Standard / Premium / VIP
 ------------------------------------------------------- */
 
 function getDefaultProfile() {
   const user = auth.currentUser;
 
   return {
-    uid:
-      user?.uid || "",
+    uid: user?.uid || "",
 
     email:
       user?.email || "",
@@ -198,6 +189,8 @@ function getDefaultProfile() {
 
     profileImage: "",
 
+    profilePhotoURL: "",
+
     verified: false,
 
     verificationStatus:
@@ -214,11 +207,10 @@ function getDefaultProfile() {
     allowTracking: false,
 
     /*
-      Limi signup creates everyone
-      as free first.
+      Every account starts free.
 
-      A verified purchase later
-      upgrades this to plus.
+      Only a verified purchase should
+      ever change this to "plus".
     */
 
     membership: "free",
@@ -254,7 +246,9 @@ function getArrayValue(
 function formatPostDate(
   value
 ) {
-  if (!value) return "";
+  if (!value) {
+    return "";
+  }
 
   try {
     if (value.toDate) {
@@ -383,8 +377,7 @@ function EditProfileModal({
           Array.isArray(
             profile.socialEnergy
           )
-            ? profile
-                .socialEnergy[0] ||
+            ? profile.socialEnergy[0] ||
               ""
             : profile.socialEnergy ||
               "",
@@ -486,6 +479,7 @@ function EditProfileModal({
         {/* NAME */}
 
         <div>
+
           <label className="mb-2 block text-sm font-black text-[#80636f]">
             Name
           </label>
@@ -499,12 +493,12 @@ function EditProfileModal({
                 ...form,
 
                 name:
-                  event.target
-                    .value,
+                  event.target.value,
               })
             }
             className="w-full rounded-2xl border border-[#f3dbe4] bg-white px-4 py-3 outline-none focus:border-[#ef9ab9]"
           />
+
         </div>
 
         {/* AGE + CITY */}
@@ -512,6 +506,7 @@ function EditProfileModal({
         <div className="grid grid-cols-2 gap-3">
 
           <div>
+
             <label className="mb-2 block text-sm font-black text-[#80636f]">
               Age
             </label>
@@ -525,15 +520,16 @@ function EditProfileModal({
                   ...form,
 
                   age:
-                    event.target
-                      .value,
+                    event.target.value,
                 })
               }
               className="w-full rounded-2xl border border-[#f3dbe4] bg-white px-4 py-3 outline-none focus:border-[#ef9ab9]"
             />
+
           </div>
 
           <div>
+
             <label className="mb-2 block text-sm font-black text-[#80636f]">
               City
             </label>
@@ -547,13 +543,13 @@ function EditProfileModal({
                   ...form,
 
                   city:
-                    event.target
-                      .value,
+                    event.target.value,
                 })
               }
               placeholder="Orlando, FL"
               className="w-full rounded-2xl border border-[#f3dbe4] bg-white px-4 py-3 outline-none focus:border-[#ef9ab9]"
             />
+
           </div>
 
         </div>
@@ -561,6 +557,7 @@ function EditProfileModal({
         {/* BIO */}
 
         <div>
+
           <label className="mb-2 block text-sm font-black text-[#80636f]">
             Bio
           </label>
@@ -575,12 +572,12 @@ function EditProfileModal({
                 ...form,
 
                 bio:
-                  event.target
-                    .value,
+                  event.target.value,
               })
             }
             className="w-full resize-none rounded-2xl border border-[#f3dbe4] bg-white px-4 py-3 outline-none focus:border-[#ef9ab9]"
           />
+
         </div>
 
         {/* DISTANCE */}
@@ -594,9 +591,7 @@ function EditProfileModal({
             </p>
 
             <p className="text-lg font-black text-[#ec64a8]">
-              {form.distanceMiles ||
-                25}{" "}
-              miles
+              {form.distanceMiles || 25} miles
             </p>
 
           </div>
@@ -616,8 +611,7 @@ function EditProfileModal({
 
                 distanceMiles:
                   Number(
-                    event.target
-                      .value
+                    event.target.value
                   ),
               })
             }
@@ -627,8 +621,7 @@ function EditProfileModal({
           <p className="mt-2 text-xs font-bold text-[#80636f]">
             This controls who
             shows up on Match,
-            Hangouts, and Feed
-            later.
+            Hangouts, and Feed.
           </p>
 
         </div>
@@ -647,9 +640,7 @@ function EditProfileModal({
               (interest) => (
                 <PillButton
                   key={interest}
-                  label={
-                    interest
-                  }
+                  label={interest}
                   active={(
                     form.interests ||
                     []
@@ -684,9 +675,7 @@ function EditProfileModal({
               (activity) => (
                 <PillButton
                   key={activity}
-                  label={
-                    activity
-                  }
+                  label={activity}
                   active={(
                     form.friendActivities ||
                     []
@@ -777,8 +766,7 @@ function EditProfileModal({
           </div>
 
           <p className="mt-2 text-xs font-bold text-[#80636f]">
-            Choose up to 3
-            vibes.
+            Choose up to 3 vibes.
           </p>
 
         </div>
@@ -822,6 +810,7 @@ function SettingsRow({
       onClick={onClick}
       className="flex w-full items-center justify-between rounded-[24px] bg-white p-4 text-left shadow-sm transition active:scale-[0.99]"
     >
+
       <div className="flex items-center gap-3">
 
         {icon}
@@ -890,6 +879,7 @@ function LegalRow({
       onClick={onClick}
       className="flex w-full items-center justify-between rounded-[20px] bg-[#fff8fb] p-4 text-left transition hover:bg-[#fff1f6] active:scale-[0.99]"
     >
+
       <div className="flex items-center gap-3">
 
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] bg-[#ffe6f0] text-[#ec64a8]">
@@ -1001,7 +991,7 @@ function SettingsModal({
           }
         />
 
-        {/* CITY */}
+        {/* SHOW CITY */}
 
         <SettingsRow
           onClick={
@@ -1055,13 +1045,7 @@ function SettingsModal({
           }
         />
 
-        {/* ------------------------------------------------
-            LEGAL
-
-            These are ACCESS links only.
-
-            Agreement happens during signup.
-        ------------------------------------------------ */}
+        {/* LEGAL */}
 
         <div className="pt-3">
 
@@ -1123,7 +1107,7 @@ function SettingsModal({
 
         </div>
 
-        {/* SUPPORT */}
+        {/* HELP */}
 
         <div className="pt-3">
 
@@ -1278,9 +1262,7 @@ function DistanceCard({
       </div>
 
       <p className="mt-3 text-3xl font-black text-[#ec64a8]">
-        {distanceMiles ||
-          25}{" "}
-        miles
+        {distanceMiles || 25} miles
       </p>
 
       <p className="mt-1 text-sm font-semibold text-[#80636f]">
@@ -1413,9 +1395,7 @@ function FeedPostsCard({
                       <span className="flex items-center gap-1">
 
                         <Heart
-                          size={
-                            14
-                          }
+                          size={14}
                           className="text-[#ec64a8]"
                         />
 
@@ -1431,9 +1411,7 @@ function FeedPostsCard({
                       <span className="flex items-center gap-1">
 
                         <MessageCircleHeart
-                          size={
-                            14
-                          }
+                          size={14}
                           className="text-[#ec64a8]"
                         />
 
@@ -1637,8 +1615,7 @@ export default function Profile() {
               Array.isArray(
                 data.socialEnergy
               )
-                ? data
-                    .socialEnergy[0] ||
+                ? data.socialEnergy[0] ||
                   ""
                 : data.socialEnergy ||
                   "",
@@ -1650,15 +1627,15 @@ export default function Profile() {
               ),
 
             /*
-              Preserve current membership.
-
-              Older Standard/Premium/VIP
-              values are not written again.
+              Keep actual membership
+              from Firestore.
             */
 
             membership:
-              data.membership ||
-              "free",
+              data.membership ===
+              "plus"
+                ? "plus"
+                : "free",
           });
         } else if (
           isOwnProfile &&
@@ -1737,6 +1714,7 @@ export default function Profile() {
               db,
               "posts"
             ),
+
             orderBy(
               "createdAt",
               "desc"
@@ -1845,19 +1823,15 @@ export default function Profile() {
           [],
 
         /*
-          IMPORTANT:
-
-          Editing the profile must never
-          downgrade a Plus member.
-
-          Preserve membership from the
-          Firestore-loaded profile.
+          Never downgrade Limi+
+          when editing profile.
         */
 
         membership:
-          profile.membership ||
-          newProfile.membership ||
-          "free",
+          profile.membership ===
+          "plus"
+            ? "plus"
+            : "free",
 
         distanceMiles:
           updatedDistance,
@@ -1966,7 +1940,9 @@ export default function Profile() {
         );
 
         setProfile(
-          (previous) => ({
+          (
+            previous
+          ) => ({
             ...previous,
 
             profileImage:
@@ -2014,8 +1990,7 @@ export default function Profile() {
   /* -------------------------------------------------------
      DELETE ACCOUNT
 
-     No prompt().
-     Some environments do not support it.
+     No window.prompt().
   ------------------------------------------------------- */
 
   const deleteAccount =
@@ -2064,28 +2039,23 @@ export default function Profile() {
         );
 
         /* -----------------------------------------------
-           USER PROFILE
-        ----------------------------------------------- */
-
-        await deleteDoc(
-          doc(
-            db,
-            "users",
-            user.uid
-          )
-        );
-
-        /* -----------------------------------------------
            MATCH ACTIVITY
         ----------------------------------------------- */
 
-        await deleteDoc(
-          doc(
-            db,
-            "matchActivity",
-            user.uid
-          )
-        );
+        try {
+          await deleteDoc(
+            doc(
+              db,
+              "matchActivity",
+              user.uid
+            )
+          );
+        } catch (error) {
+          console.warn(
+            "Could not delete match activity:",
+            error
+          );
+        }
 
         /* -----------------------------------------------
            CHATS
@@ -2097,6 +2067,7 @@ export default function Profile() {
               db,
               "chats"
             ),
+
             where(
               "memberIds",
               "array-contains",
@@ -2223,7 +2194,23 @@ export default function Profile() {
         );
 
         /* -----------------------------------------------
-           FIREBASE AUTH ACCOUNT
+           USER PROFILE
+
+           Delete near the end so other
+           cleanup still has the signed-in
+           user available.
+        ----------------------------------------------- */
+
+        await deleteDoc(
+          doc(
+            db,
+            "users",
+            user.uid
+          )
+        );
+
+        /* -----------------------------------------------
+           FIREBASE AUTH USER
         ----------------------------------------------- */
 
         await deleteUser(
@@ -2284,8 +2271,7 @@ export default function Profile() {
         } catch {
           /*
             Native wrappers may not
-            support browser Notification
-            API yet.
+            support browser Notification.
           */
         }
       }
@@ -2323,37 +2309,57 @@ export default function Profile() {
 
   /* -------------------------------------------------------
      LEGAL NAVIGATION
-
-     These routes need pages in App.jsx:
-
-     /terms
-     /privacy
-     /community-guidelines
   ------------------------------------------------------- */
 
-  const openTerms = () => {
-    setSettingsOpen(false);
+  const openTerms =
+    () => {
+      setSettingsOpen(
+        false
+      );
 
-    navigate(
-      "/terms"
-    );
-  };
+      navigate(
+        "/terms"
+      );
+    };
 
-  const openPrivacy = () => {
-    setSettingsOpen(false);
+  const openPrivacy =
+    () => {
+      setSettingsOpen(
+        false
+      );
 
-    navigate(
-      "/privacy"
-    );
-  };
+      navigate(
+        "/privacy"
+      );
+    };
 
-  const openGuidelines = () => {
-    setSettingsOpen(false);
+  const openGuidelines =
+    () => {
+      setSettingsOpen(
+        false
+      );
 
-    navigate(
-      "/community-guidelines"
-    );
-  };
+      navigate(
+        "/community-guidelines"
+      );
+    };
+
+  /* -------------------------------------------------------
+     LIMI+ UPGRADE
+  ------------------------------------------------------- */
+
+  const openLimiPlus =
+    () => {
+      navigate(
+        "/limi-plus",
+        {
+          state: {
+            fromProfile:
+              true,
+          },
+        }
+      );
+    };
 
   /* -------------------------------------------------------
      PROFILE STATS
@@ -2419,9 +2425,7 @@ export default function Profile() {
 
       <div className="mx-auto max-w-md px-4 pt-5">
 
-        {/* ------------------------------------------------
-            PROFILE HEADER
-        ------------------------------------------------ */}
+        {/* PROFILE HEADER */}
 
         <div className="overflow-hidden rounded-[40px] bg-white shadow-[0_14px_36px_rgba(239,148,181,0.16)]">
 
@@ -2466,9 +2470,7 @@ export default function Profile() {
 
           </div>
 
-          {/* ------------------------------------------------
-              PROFILE CONTENT
-          ------------------------------------------------ */}
+          {/* PROFILE CONTENT */}
 
           <div className="-mt-20 px-6 pb-6">
 
@@ -2508,9 +2510,7 @@ export default function Profile() {
 
                     <div className="absolute bottom-2 right-2 flex h-12 w-12 items-center justify-center rounded-2xl border-4 border-white bg-[#ec64a8] text-white shadow-md">
                       <Camera
-                        size={
-                          18
-                        }
+                        size={18}
                       />
                     </div>
 
@@ -2536,8 +2536,7 @@ export default function Profile() {
 
               {uploadingPhoto && (
                 <p className="mt-3 text-sm font-black text-[#ec64a8]">
-                  Uploading
-                  photo...
+                  Uploading photo...
                 </p>
               )}
 
@@ -2561,13 +2560,22 @@ export default function Profile() {
                   <span className="inline-flex items-center gap-1 rounded-full bg-[#eef9ee] px-3 py-1 text-xs font-black text-green-600">
 
                     <ShieldCheck
-                      size={
-                        14
-                      }
+                      size={14}
                     />
 
                     Verified
 
+                  </span>
+                )}
+
+                {profile.membership ===
+                  "plus" && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-[#fff0f6] to-[#ffe4ef] px-3 py-1 text-xs font-black text-[#d94b93]">
+                    <Crown
+                      size={13}
+                    />
+
+                    Limi+
                   </span>
                 )}
 
@@ -2580,9 +2588,7 @@ export default function Profile() {
                   <div className="mt-2 flex items-center gap-2 text-sm font-black text-[#80636f]">
 
                     <MapPin
-                      size={
-                        16
-                      }
+                      size={16}
                       className="text-[#ec64a8]"
                     />
 
@@ -2640,9 +2646,7 @@ export default function Profile() {
                     className="flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#f38cad] to-[#fb8f9f] py-4 text-sm font-black text-white shadow-[0_10px_24px_rgba(237,102,157,0.20)]"
                   >
                     <Edit3
-                      size={
-                        17
-                      }
+                      size={17}
                     />
 
                     Edit Profile
@@ -2658,9 +2662,7 @@ export default function Profile() {
                     className="flex items-center justify-center gap-2 rounded-full border border-[#f1d8e3] bg-white py-4 text-sm font-black text-[#d94b93]"
                   >
                     <ShieldCheck
-                      size={
-                        17
-                      }
+                      size={17}
                     />
 
                     Verify
@@ -2675,9 +2677,7 @@ export default function Profile() {
 
         </div>
 
-        {/* ------------------------------------------------
-            DISTANCE
-        ------------------------------------------------ */}
+        {/* DISTANCE */}
 
         <DistanceCard
           distanceMiles={
@@ -2685,9 +2685,7 @@ export default function Profile() {
           }
         />
 
-        {/* ------------------------------------------------
-            INTERESTS
-        ------------------------------------------------ */}
+        {/* INTERESTS */}
 
         <ProfileInfoCard
           icon={
@@ -2704,9 +2702,7 @@ export default function Profile() {
           emptyText="Add your interests so better matches can find you 💕"
         />
 
-        {/* ------------------------------------------------
-            FRIEND ACTIVITIES
-        ------------------------------------------------ */}
+        {/* FRIEND ACTIVITIES */}
 
         <ProfileInfoCard
           icon={
@@ -2722,9 +2718,7 @@ export default function Profile() {
           emptyText="No friend activities added yet."
         />
 
-        {/* ------------------------------------------------
-            SOCIAL ENERGY
-        ------------------------------------------------ */}
+        {/* SOCIAL ENERGY */}
 
         <ProfileInfoCard
           icon={
@@ -2740,9 +2734,7 @@ export default function Profile() {
           emptyText="No social energy added yet."
         />
 
-        {/* ------------------------------------------------
-            VIBES
-        ------------------------------------------------ */}
+        {/* VIBES */}
 
         <ProfileInfoCard
           icon={
@@ -2758,9 +2750,7 @@ export default function Profile() {
           emptyText="No vibe added yet."
         />
 
-        {/* ------------------------------------------------
-            FEED POSTS
-        ------------------------------------------------ */}
+        {/* FEED POSTS */}
 
         <FeedPostsCard
           posts={
@@ -2769,7 +2759,7 @@ export default function Profile() {
         />
 
         {/* ------------------------------------------------
-            ACCOUNT STATUS
+            ACCOUNT STATUS + MEMBERSHIP
         ------------------------------------------------ */}
 
         {isOwnProfile && (
@@ -2787,6 +2777,8 @@ export default function Profile() {
               </h3>
 
             </div>
+
+            {/* VERIFICATION */}
 
             <p className="mt-3 text-sm font-semibold leading-6 text-[#80636f]">
 
@@ -2809,6 +2801,8 @@ export default function Profile() {
 
             </p>
 
+            {/* NOTIFICATIONS */}
+
             <p className="mt-2 text-sm font-semibold leading-6 text-[#80636f]">
 
               Notifications:{" "}
@@ -2823,14 +2817,88 @@ export default function Profile() {
 
             </p>
 
+            {/* MEMBERSHIP */}
+
+            <p className="mt-2 text-sm font-semibold leading-6 text-[#80636f]">
+
+              Membership:{" "}
+
+              <span className="font-black text-[#ec64a8]">
+
+                {profile.membership ===
+                "plus"
+                  ? "Limi+"
+                  : "Limi Free"}
+
+              </span>
+
+            </p>
+
+            {/* ------------------------------------------------
+                PLUS ACTIVE
+            ------------------------------------------------ */}
+
+            {profile.membership ===
+            "plus" ? (
+
+              <div className="mt-5 overflow-hidden rounded-[26px] border border-[#f6d9e6] bg-gradient-to-br from-[#fff5fa] via-[#ffeaf3] to-[#ffe3ee] p-4">
+
+                <div className="flex items-center gap-3">
+
+                  <div className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-white/75 text-[#d94b93] shadow-sm">
+
+                    <Crown
+                      size={21}
+                    />
+
+                  </div>
+
+                  <div>
+
+                    <p className="font-black text-[#d94b93]">
+                      Limi+ Active
+                    </p>
+
+                    <p className="mt-0.5 text-xs font-semibold text-[#80636f]">
+                      Your premium membership is active.
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+            ) : (
+
+              /* ------------------------------------------------
+                  UPGRADE TO LIMI+
+              ------------------------------------------------ */
+
+              <button
+                type="button"
+                onClick={
+                  openLimiPlus
+                }
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#f4a1bd] via-[#ee79a5] to-[#e25a97] py-4 text-lg font-black text-white shadow-[0_12px_28px_rgba(217,75,147,0.24)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(217,75,147,0.28)] active:translate-y-0 active:scale-[0.98]"
+              >
+
+                <Crown
+                  size={19}
+                />
+
+                Upgrade to Limi+
+
+              </button>
+
+            )}
+
           </div>
         )}
 
       </div>
 
-      {/* ------------------------------------------------
-          EDIT PROFILE MODAL
-      ------------------------------------------------ */}
+      {/* EDIT PROFILE MODAL */}
 
       {isOwnProfile && (
         <EditProfileModal
@@ -2851,9 +2919,7 @@ export default function Profile() {
         />
       )}
 
-      {/* ------------------------------------------------
-          SETTINGS MODAL
-      ------------------------------------------------ */}
+      {/* SETTINGS MODAL */}
 
       <SettingsModal
         open={
