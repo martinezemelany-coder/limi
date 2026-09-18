@@ -5,8 +5,7 @@ import {
 } from "firebase/app";
 
 import {
-  initializeAuth,
-  browserLocalPersistence,
+  getAuth,
   GoogleAuthProvider,
 } from "firebase/auth";
 
@@ -47,16 +46,9 @@ const app =
 
 /* -------------------------------------------------------
    FIREBASE AUTH
-
-   Explicit persistence is more predictable
-   inside the Capacitor iOS WebView.
 ------------------------------------------------------- */
 
-export const auth =
-  initializeAuth(app, {
-    persistence:
-      browserLocalPersistence,
-  });
+export const auth = getAuth(app);
 
 export const db =
   getFirestore(app);

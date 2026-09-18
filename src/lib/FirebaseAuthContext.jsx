@@ -204,7 +204,7 @@ export function FirebaseAuthProvider({
         Capacitor.isNativePlatform()
       ) {
         const nativeResult =
-          await FirebaseAuthentication.signInWithGoogle();
+          await FirebaseAuthentication.signInWithGoogle({});
 
         const idToken =
           nativeResult
