@@ -1262,6 +1262,9 @@ function CreatePostModal({
               file: imageFile,
               uid:
                 currentUser.uid,
+              userEmail:
+                currentUser.email ||
+                "",
             });
 
           imageURL =
@@ -1659,11 +1662,14 @@ function CommentRow({
   onDelete,
   onReport,
 }) {
-  const canDelete =
-    comment.uid ===
-      currentUser?.uid ||
-    postOwnerUid ===
-      currentUser?.uid;
+const canDelete =
+  comment.uid === currentUser?.uid ||
+  (
+    comment.userEmail &&
+    currentUser?.email &&
+    comment.userEmail === currentUser.email
+  ) ||
+  postOwnerUid === currentUser?.uid;
 
   const canReport =
     comment.uid &&

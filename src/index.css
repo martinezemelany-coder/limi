@@ -84,8 +84,33 @@
   * {
     @apply border-border outline-ring/50;
   }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     @apply bg-background text-foreground font-dm;
+
+    touch-action: manipulation;
+    overscroll-behavior-x: none;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px;
   }
 }
 
@@ -93,21 +118,37 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
 
   .gradient-pink {
-    background: linear-gradient(135deg, #fda4af 0%, #f9a8d4 50%, #fbcfe8 100%);
+    background: linear-gradient(
+      135deg,
+      #fda4af 0%,
+      #f9a8d4 50%,
+      #fbcfe8 100%
+    );
   }
 
   .gradient-warm {
-    background: linear-gradient(135deg, #f9a8d4 0%, #fbb6ce 50%, #fda4af 100%);
+    background: linear-gradient(
+      135deg,
+      #f9a8d4 0%,
+      #fbb6ce 50%,
+      #fda4af 100%
+    );
   }
 
   .gradient-soft {
-    background: linear-gradient(135deg, #fff0f6 0%, #ffe4f0 50%, #ffd6e8 100%);
+    background: linear-gradient(
+      135deg,
+      #fff0f6 0%,
+      #ffe4f0 50%,
+      #ffd6e8 100%
+    );
   }
 
   .glass {
@@ -123,14 +164,19 @@
   }
 
   .text-gradient {
-    background: linear-gradient(135deg, #f472b6, #fda4af);
+    background: linear-gradient(
+      135deg,
+      #f472b6,
+      #fda4af
+    );
+
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
   .shadow-glow {
-    box-shadow: 0 0 30px rgba(249, 146, 178, 0.30);
+    box-shadow: 0 0 30px rgba(249, 146, 178, 0.3);
   }
 
   .shadow-glow-sm {
